@@ -15,10 +15,10 @@ bind: 0.0.0.0
 sidebar: true
 
 # add H1 title to files that do not have one
-auto_h1: true
+auto_h1: false
 
 # append navigation to directory READMEs
-auto_nav: true
+auto_nav: false
 
 # enable syntax highlighter for code snippets
 highlighter: true
