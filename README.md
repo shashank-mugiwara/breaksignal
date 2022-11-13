@@ -4,7 +4,8 @@ If you are able to view this page, then my RaspberryPi is running fine, serving 
 
 The below avatars include Me (Shashank J), My Cat (LeoRio, which I don't own) and My RaspberryPi.
 
-![avatar](https://avatars.githubusercontent.com/u/93654057?s=400&u=d25332e20ed56b41f4a408134acb0482cd851be7&v=4&h=150&w=150&fit=cover&mask=rectangle&maxage=7d)
+![avatar](https://images.weserv.nl/?url=https://avatars.githubusercontent.com/u/93654057?s=400&u=d25332e20ed56b41f4a408134acb0482cd851be7&v=4&h=150&w=150&fit=cover&mask=rectangle&maxage=7d
+)
 ![avatar](https://images.weserv.nl/?url=https://raw.githubusercontent.com/shashank-mugiwara/breaksignal/website-structure/images/leorio.jpeg?v=4&h=150&w=150&fit=cover&mask=rectangle&maxage=7d
 )
 ![avatar](https://images.weserv.nl/?url=https://raw.githubusercontent.com/shashank-mugiwara/breaksignal/website-structure/images/myrasp.jpeg?v=4&h=150&w=150&fit=cover&mask=rectangle&maxage=7d
