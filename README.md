@@ -10,3 +10,6 @@ The below avatars include Me (Shashank J), My Cat (LeoRio, which I don't own) an
 )
 ![avatar](https://images.weserv.nl/?url=https://raw.githubusercontent.com/shashank-mugiwara/breaksignal/website-structure/images/myrasp.jpeg?v=4&h=150&w=150&fit=cover&mask=rectangle&maxage=7d
 )
+
+## API Gateway and Other Service Endpoints:
+If I am running any services locally at my end, I would've exposed those services for your use. I use `traefik` API gateway to route your requests to different services that I run locally. You can see the dashboard [here](http://122.166.84.137:4000/) and to know more about the services that I have exposed go [here](http://122.166.84.137:4000/).
