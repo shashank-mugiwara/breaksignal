@@ -13,9 +13,9 @@ c. **DUMP** - To dump entire existing Key-Value database as one json string.<br/
 
 ## Design Considerations
 To handle multiple clients concurrently in a non-blocking fashion, we can use **_asyncio_** library as a fundamental building block of our servers. To understand more about Python's model of concurrency, I would like you to follow these tutorials below:</br>
-1. [Trying to run concurrent code in Python](../Python/Concurrency/01-Trying-To-Run-Concurrent-Code.md)
-2. [Understanding IO bound and CPU bound code](../Python/Concurrency/02-IO-vs-CPU-Bound.md)
-3. [Understanding Event Multiplexing in Operating System](../Python/Concurrency/03-Event-Multiplexing.md)
+1. [Trying to run concurrent code in Python](../Concurrency/Python/Concurrency/01-Trying-To-Run-Concurrent-Code.md)
+2. [Understanding IO bound and CPU bound code](../Concurrency/Python/Concurrency/02-IO-vs-CPU-Bound.md)
+3. [Understanding Event Multiplexing in Operating System](../Concurrency/Python/Concurrency/03-Event-Multiplexing.md)
 
 
 ## Code Design
