@@ -2,7 +2,7 @@
 title: Understanding IO Bound vs CPU Bound calls in python and the role of GIL Lock
 description: 
 published: true
-date: 2023-06-24T18:03:46.203Z
+date: 2023-06-24T18:05:35.642Z
 tags: python, io bound, cpu bound, gil lock, concurrency, parallelism
 editor: markdown
 dateCreated: 2023-06-24T18:03:46.203Z
@@ -20,10 +20,18 @@ To better understand I/O bound tasks, let's consider an example in Python:
 
 ```python
 import requests
+import time
 
 def download_file(url):
+    start_time = time.time()
     response = requests.get(url)
     # Perform further processing on the downloaded file
+    end_time = time.time()
+    execution_time = end_time - start_time
+    print(f"Downloaded file in {execution_time:.2f} seconds.")
+    
+download_file("https://example.com/file.txt")
+
 ```
 
 In this example, the `download_file` function performs a network request to download a file from the specified URL. The execution of this function is I/O bound because it spends a significant amount of time waiting for the network request to complete.
@@ -34,11 +42,20 @@ CPU bound tasks, on the other hand, heavily rely on computational operations and
 Let's consider a CPU bound task example in Python:
 
 ```python
+import time
+
 def calculate_fibonacci(n):
+    start_time = time.time()
     if n <= 1:
-        return n
+        result = n
     else:
-        return calculate_fibonacci(n-1) + calculate_fibonacci(n-2)
+        result = calculate_fibonacci(n-1) + calculate_fibonacci(n-2)
+    end_time = time.time()
+    execution_time = end_time - start_time
+    print(f"Calculated Fibonacci({n}) in {execution_time:.2f} seconds.")
+    return result
+
+calculate_fibonacci(30)
 ```
 
 In this example, the `calculate_fibonacci` function recursively computes the Fibonacci sequence up to the specified `n` value. The execution of this function is CPU bound because it involves intensive calculations that rely on the CPU's processing capabilities.
