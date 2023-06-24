@@ -1,0 +1,410 @@
+<!--
+title: Using Opensearch or Elasticsearch for full-text searches - A POC
+description: 
+published: true
+date: 2023-06-24T09:04:56.995Z
+tags: full-text search, opensearch, elasticsearch, wildcard
+editor: ckeditor
+dateCreated: 2023-06-24T09:04:54.711Z
+-->
+
+<h1 style="text-align:center;">OpenSearch Benchmarking - Bank Statement Analysis</h1>
+<p>&nbsp;</p>
+<figure class="table" style="text-align:center;">
+  <table style="background-color:rgb(255, 255, 255);border-bottom:1px solid rgb(224, 224, 224);border-left:1px solid rgb(224, 224, 224);border-right:1px solid rgb(224, 224, 224);border-top:1px solid rgb(224, 224, 224);">
+    <tbody>
+      <tr>
+        <td style="border-bottom:1px solid rgb(207, 216, 220);border-left:1px solid rgb(207, 216, 220);border-right:1px solid rgb(207, 216, 220);border-top:1px solid rgb(207, 216, 220);padding:0.5rem 0.75rem;" colspan="2"><strong>OpenSearch Cluster Information</strong></td>
+      </tr>
+      <tr>
+        <td style="background-color:rgb(250, 250, 250);border-bottom:1px solid rgb(207, 216, 220);border-left:1px solid rgb(207, 216, 220);border-right:1px solid rgb(207, 216, 220);border-top:1px solid rgb(207, 216, 220);padding:0.5rem 0.75rem;">&nbsp;Version</td>
+        <td style="background-color:rgb(245, 245, 245);border-bottom:1px solid rgb(207, 216, 220);border-left:1px solid rgb(207, 216, 220);border-right:1px solid rgb(207, 216, 220);border-top:1px solid rgb(207, 216, 220);padding:0.5rem 0.75rem;">&nbsp;2.5</td>
+      </tr>
+      <tr>
+        <td style="border-bottom:1px solid rgb(207, 216, 220);border-left:1px solid rgb(207, 216, 220);border-right:1px solid rgb(207, 216, 220);border-top:1px solid rgb(207, 216, 220);padding:0.5rem 0.75rem;">Domain name</td>
+        <td style="background-color:rgb(250, 250, 250);border-bottom:1px solid rgb(207, 216, 220);border-left:1px solid rgb(207, 216, 220);border-right:1px solid rgb(207, 216, 220);border-top:1px solid rgb(207, 216, 220);padding:0.5rem 0.75rem;">&nbsp;opensearch-eu-west-1</td>
+      </tr>
+      <tr>
+        <td style="background-color:rgb(250, 250, 250);border-bottom:1px solid rgb(207, 216, 220);border-left:1px solid rgb(207, 216, 220);border-right:1px solid rgb(207, 216, 220);border-top:1px solid rgb(207, 216, 220);padding:0.5rem 0.75rem;">&nbsp;VPC Endpoint</td>
+        <td style="background-color:rgb(245, 245, 245);border-bottom:1px solid rgb(207, 216, 220);border-left:1px solid rgb(207, 216, 220);border-right:1px solid rgb(207, 216, 220);border-top:1px solid rgb(207, 216, 220);padding:0.5rem 0.75rem;">&nbsp;https://vpc-opensearch-eu-west-1-taklxygqetyxg6krtrswbiztby.eu-west-1.es.amazonaws.com</td>
+      </tr>
+      <tr>
+        <td style="border-bottom:1px solid rgb(207, 216, 220);border-left:1px solid rgb(207, 216, 220);border-right:1px solid rgb(207, 216, 220);border-top:1px solid rgb(207, 216, 220);padding:0.5rem 0.75rem;">&nbsp;Availability Zone(s)</td>
+        <td style="background-color:rgb(250, 250, 250);border-bottom:1px solid rgb(207, 216, 220);border-left:1px solid rgb(207, 216, 220);border-right:1px solid rgb(207, 216, 220);border-top:1px solid rgb(207, 216, 220);padding:0.5rem 0.75rem;">&nbsp;1-AZ</td>
+      </tr>
+      <tr>
+        <td style="background-color:rgb(250, 250, 250);border-bottom:1px solid rgb(207, 216, 220);border-left:1px solid rgb(207, 216, 220);border-right:1px solid rgb(207, 216, 220);border-top:1px solid rgb(207, 216, 220);padding:0.5rem 0.75rem;">&nbsp;Dedicated Master Node Available ?</td>
+        <td style="background-color:rgb(245, 245, 245);border-bottom:1px solid rgb(207, 216, 220);border-left:1px solid rgb(207, 216, 220);border-right:1px solid rgb(207, 216, 220);border-top:1px solid rgb(207, 216, 220);padding:0.5rem 0.75rem;">&nbsp;No</td>
+      </tr>
+      <tr>
+        <td style="border-bottom:1px solid rgb(207, 216, 220);border-left:1px solid rgb(207, 216, 220);border-right:1px solid rgb(207, 216, 220);border-top:1px solid rgb(207, 216, 220);padding:0.5rem 0.75rem;">&nbsp;Warm and cold data storage Available ?</td>
+        <td style="background-color:rgb(250, 250, 250);border-bottom:1px solid rgb(207, 216, 220);border-left:1px solid rgb(207, 216, 220);border-right:1px solid rgb(207, 216, 220);border-top:1px solid rgb(207, 216, 220);padding:0.5rem 0.75rem;">&nbsp;No</td>
+      </tr>
+      <tr>
+        <td style="background-color:rgb(250, 250, 250);border-bottom:1px solid rgb(207, 216, 220);border-left:1px solid rgb(207, 216, 220);border-right:1px solid rgb(207, 216, 220);border-top:1px solid rgb(207, 216, 220);padding:0.5rem 0.75rem;">EBS Volume Type</td>
+        <td style="background-color:rgb(245, 245, 245);border-bottom:1px solid rgb(207, 216, 220);border-left:1px solid rgb(207, 216, 220);border-right:1px solid rgb(207, 216, 220);border-top:1px solid rgb(207, 216, 220);padding:0.5rem 0.75rem;">General Purpose (SSD) - gp3</td>
+      </tr>
+      <tr>
+        <td style="border-bottom:1px solid rgb(207, 216, 220);border-left:1px solid rgb(207, 216, 220);border-right:1px solid rgb(207, 216, 220);border-top:1px solid rgb(207, 216, 220);padding:0.5rem 0.75rem;">EBS Volume Size Per Node</td>
+        <td style="background-color:rgb(250, 250, 250);border-bottom:1px solid rgb(207, 216, 220);border-left:1px solid rgb(207, 216, 220);border-right:1px solid rgb(207, 216, 220);border-top:1px solid rgb(207, 216, 220);padding:0.5rem 0.75rem;">10 GiB</td>
+      </tr>
+      <tr>
+        <td style="background-color:rgb(250, 250, 250);border-bottom:1px solid rgb(207, 216, 220);border-left:1px solid rgb(207, 216, 220);border-right:1px solid rgb(207, 216, 220);border-top:1px solid rgb(207, 216, 220);padding:0.5rem 0.75rem;">Number of OpenSearch Nodes</td>
+        <td style="background-color:rgb(245, 245, 245);border-bottom:1px solid rgb(207, 216, 220);border-left:1px solid rgb(207, 216, 220);border-right:1px solid rgb(207, 216, 220);border-top:1px solid rgb(207, 216, 220);padding:0.5rem 0.75rem;">2</td>
+      </tr>
+      <tr>
+        <td style="border-bottom:1px solid rgb(207, 216, 220);border-left:1px solid rgb(207, 216, 220);border-right:1px solid rgb(207, 216, 220);border-top:1px solid rgb(207, 216, 220);padding:0.5rem 0.75rem;">Provisioned IOPS</td>
+        <td style="background-color:rgb(250, 250, 250);border-bottom:1px solid rgb(207, 216, 220);border-left:1px solid rgb(207, 216, 220);border-right:1px solid rgb(207, 216, 220);border-top:1px solid rgb(207, 216, 220);padding:0.5rem 0.75rem;">3000 IOPS</td>
+      </tr>
+      <tr>
+        <td style="background-color:rgb(250, 250, 250);border-bottom:1px solid rgb(207, 216, 220);border-left:1px solid rgb(207, 216, 220);border-right:1px solid rgb(207, 216, 220);border-top:1px solid rgb(207, 216, 220);padding:0.5rem 0.75rem;">Provisioned Throughput (MiB/s)</td>
+        <td style="background-color:rgb(245, 245, 245);border-bottom:1px solid rgb(207, 216, 220);border-left:1px solid rgb(207, 216, 220);border-right:1px solid rgb(207, 216, 220);border-top:1px solid rgb(207, 216, 220);padding:0.5rem 0.75rem;">125 MiB/s</td>
+      </tr>
+      <tr>
+        <td style="border-bottom:1px solid rgb(207, 216, 220);border-left:1px solid rgb(207, 216, 220);border-right:1px solid rgb(207, 216, 220);border-top:1px solid rgb(207, 216, 220);padding:0.5rem 0.75rem;">Snapshot Backup Frequency</td>
+        <td style="background-color:rgb(250, 250, 250);border-bottom:1px solid rgb(207, 216, 220);border-left:1px solid rgb(207, 216, 220);border-right:1px solid rgb(207, 216, 220);border-top:1px solid rgb(207, 216, 220);padding:0.5rem 0.75rem;">Hourly</td>
+      </tr>
+    </tbody>
+  </table>
+</figure>
+<h1>Mapping to store the transactions</h1>
+<pre><code class="language-plaintext">{
+    "mappings": {
+        "properties": {
+            "account_id": {
+                "type": "keyword"
+            },
+            "description_term": {
+                "type": "keyword"
+            },
+            "description_text": {
+                "type": "text"
+            },
+            "transaction_date": {
+                "type": "date",
+                "format": "strict_year_month_day"
+            },
+            "chq_no": {
+                "type": "keyword"
+            },
+            "highlight": {
+                "type": "boolean"
+            },
+            "sl_no": {
+                "type": "integer"
+            },
+            "is_debit": {
+                "type": "boolean"
+            },
+            "transaction_amount": {
+                "type": "double"
+            },
+            "category": {
+                "type": "keyword"
+            }
+        }
+    }
+}</code></pre>
+<p>Copy</p>
+<h1><strong>Description of fields</strong></h1>
+<ol>
+  <li><code>account_id (keyword)</code> - Set of transaction records under an account.</li>
+  <li><code>description_term (keyword)</code> - Narration / Description of the transaction made. This field needs to support &nbsp;full-text searches.</li>
+  <li><code>description_text (text)</code> - Narration / Description of the transaction made but the type of of <strong>text. </strong>See this comparison here - <a href="https://opensearch.org/docs/latest/query-dsl/term-vs-full-text/">https://opensearch.org/docs/latest/query-dsl/term-vs-full-text</a></li>
+  <li><code>transaction_date (date)</code> - Formatted as - strict_year_month_day . To store transaction date in <code>YYYY-MM-DD</code> format.</li>
+  <li><code>chq_no(keyword)</code> - Cheque number if the transaction is made using cheque. We are populating this for every entry for benchmarking and solution testing.</li>
+  <li><code>highlight (boolean)</code> - When the user highlights a transaction , we set the value to true.</li>
+  <li><code>sl_no (integer)</code> - Serial number / Order number of the transaction.</li>
+  <li><code>is_debit (boolean)</code> - true if the transaction is a boolean transaction.</li>
+  <li><code>transaction_amount (double)</code> - Transaction amount.</li>
+  <li><code>category (keyword)</code> - Category of the transaction.</li>
+</ol>
+<h1>A note on the use case</h1>
+<p>The user should be able to do full text searches on description field. Consider the example records below:</p>
+<pre><code class="language-plaintext">"description_term": "TDS DEDUCTED Yukta Wahal Debt 36108473986#",
+"description_term": "TDS DEDUCTED Yukta Upadhyay Social, 82225554583#",
+"description_term": "TDS DEDUCTED Yukta Upadhyay Rate 85373069044#",
+"description_term": "TDS DEDUCTED Yukta Tiwari (CFA) 15646092048#",
+"description_term": "TDS DEDUCTED Yukta Holkar Cost 39464312918#",</code></pre>
+<p>Copy</p>
+<p>If a user searches for text like <code>TDS</code> and <code>ukta</code> all the above 5 entries should be showed up. Fuzziness is not yet a part of our search, so we are skipping that.</p>
+<h1>Preparing the data</h1>
+<p>We will be generating data that is similar to what an actual transaction description looks. Below is a sample document of data generated.</p>
+<pre><code class="language-plaintext">{
+  "account_id": "37503487134",
+  "description_term": "TDS DEDUCTED Yukta Gaur Bankruptcy 54636237417#",
+  "description_text": "TDS DEDUCTED Yukta Gaur Bankruptcy 54636237417#",
+  "transaction_date": "2023-12-04",
+  "chq_no": "CHQ-9649",
+  "highlight": false,
+  "sl_no": 10156058,
+  "is_debit": true,
+  "transaction_amount": 4276,
+  "category": "GstinConsentLink"
+}</code></pre>
+<p>Copy</p>
+<p><i><strong>The code for generating the above data is given below:</strong></i></p>
+<pre><code class="language-plaintext">counter = 0
+
+category_list = [..some-categories..] - # ex: [sendLoanAgreement, blackBoxInvoker, loanDisbursal etc]
+description_list = [..some-description..] - # ex: [Accounting, Return etc]
+transaction_list = [..some-transaction-related-words..] #ex: [ACCOUNT, CAPITAL, CREDIT, NEFT/SBIN, UPI/GPAY etc]
+accounts_list = [..fixed-account-numbers-90+..] #ex: [71983548866, 53012970390, 62310812672]
+
+def randN(N):
+    min = pow(10, N-1)
+    max = pow(10, N) - 1
+    return random.randint(min, max)
+
+
+def index_document():
+    global counter
+    counter = counter + 1
+
+    person_name = indian_names.get_full_name()
+    description_modified_desc = random.choice(transaction_list) + ' ' + \
+                                 person_name + ' ' + random.choice(description_list) + ' ' + str(randN(11)) + '#'
+    transaction_date = get_fake_date()
+    formatted_date = str(transaction_date)
+    id = counter
+    document = {
+        'account_id': random.choice(accounts_list),
+        'description_term': description_modified_desc,
+        'description_text': description_modified_desc,
+        'transaction_date': formatted_date,
+        'chq_no': "CHQ-" + str(randN(4)),
+        'highlight': False,
+        'sl_no': counter,
+        'is_debit': bool(random.getrandbits(1)),
+        'transaction_amount':  float("{0:.2f}".format(randN(4))),
+        'category': random.choice(category_list)
+    }
+    return document, id</code></pre>
+<p>Copy</p>
+<h1>Testing plan</h1>
+<p>Since an app-form has multiple accounts under it and each account can have an average of 100000 records, we can go with assumption each account having a total of 700000 records for our testing. We will also create few indexes on the same cluster which have high number of documents to see how other indexes affect cluster performance. So overall these are the cases under which we will test the feasibility and performance of elastic search:</p>
+<ol>
+  <li>We create an index for every app-form and and add 900000 documents. There will be a 100000 documents associated with each account.</li>
+  <li>We create a index say <code>other</code> with high number of documents say - one billion.</li>
+</ol>
+<p>Since we are targeting to support <code>full-text</code> searches, using <code>wildcard</code> queries will fit in to our use case. But wildcard queries are costly and we need to check the performance of these queries on the above defined cases. We will also try using <code>n-grams</code> or <code>knn</code> search to see if they can optimise and fit into the solution that we are looking for.</p>
+<p><code>AppFormIds List - appforms.csv sample</code></p>
+<pre><code class="language-plaintext">appFormId
+3040c75d-7003-4d6b-b00a-68e73437d702,
+7d12d071-ebce-41d5-9113-1a13a004a3f5,
+5c368295-e5ee-47de-acdd-e8b4f3c163bd,
+21a107b1-e66d-447e-b131-70894e67671a,
+1ee5feb6-5bc1-4a54-b8fb-541a106139ce,
+3d5f6809-d0a6-4edc-a7e0-0307fd3fa895,
+7924c198-b018-4c04-9156-c68d1f36cdfc,
+1dd876a8-4919-414c-a1b6-335de41589e2,
+d5a29a35-9c09-43e5-afcd-3beb07d66b04,
+93cbbad1-20df-43b4-aa19-8eba38cd9e5b</code></pre>
+<p>Copy</p>
+<p><code>AccountsIds List&nbsp;</code> - Every appForm above have these accounts and each account has <code>45000</code> records.</p>
+<pre><code class="language-plaintext">accountId
+dwxsjhdrxo
+dwwdcjyfmw
+igsnodlzai
+yzmiyspdqu
+cgerslhcuh
+bbqhszautv
+obyzkusfgz
+omcjodrnjj
+jaialvjana</code></pre>
+<p>Copy</p>
+<p><code>Overall Indexes Information - 21 indexes with each index having 10 accounts and&nbsp;</code></p>
+<pre><code class="language-plaintext">green open aa2c2031-8196-46f3-a065-2c607560102e yNUfCKW6SPq-7op88a0GEA 5 1 900000 0 395.3mb 198.3mb
+green open bda1457a-a67a-4595-9c3f-210fa9807e23 plaRLA1LQhCauXpC60Uebw 5 1 900000 0 393.9mb 197.4mb
+green open 21a107b1-e66d-447e-b131-70894e67671a nbPvfmfvScaUkH02JFQjkw 5 1 900000 0 395.3mb 198.3mb
+green open 93cbbad1-20df-43b4-aa19-8eba38cd9e5b K--JVUYTQyOvaLdbekvzvw 5 1 900000 0   395mb 198.1mb
+green open 2862c1b7-24b0-4fbc-b6bf-cda9ca413ab2 QuYAzePYRLqKi1cI6OMkHw 5 1 900000 0 394.6mb   198mb
+green open 3040c75d-7003-4d6b-b00a-68e73437d702 WbiGMb0HTrag8DifOx7bpQ 5 1 900000 0 394.5mb 197.8mb
+green open ea5b97df-dcc7-4e12-aba1-ac6e8a366f85 LGeDLdhSSTS3Um_GT4aUVg 5 1 900000 0 394.4mb 197.7mb
+green open 5c368295-e5ee-47de-acdd-e8b4f3c163bd 4q-VyHWtSlq_Ewm-GHTWdA 5 1 900000 0 395.3mb 198.4mb
+green open 492ceac5-f21b-4c51-b3db-8794193ce0ae xXbkbT9pQZ6ja0RPxnLsHA 5 1 900000 0 395.2mb 198.1mb
+green open f2610cc4-9347-4c08-9a9e-bbbb6c17699d 3PCmpJqkT2u7XWSIqamVHw 5 1 900000 0 394.8mb 198.3mb
+green open 3d5f6809-d0a6-4edc-a7e0-0307fd3fa895 DQ8voAMJTDm4Mdh12oP3Ng 5 1 900000 0 395.2mb 198.2mb
+green open 7924c198-b018-4c04-9156-c68d1f36cdfc P8nBEejsQ3iAIIlALZzalw 5 1 900000 0 394.4mb 197.7mb
+green open 1445f76e-501f-44ef-aecb-7e9492a70883 OhaVCBbYSTms7W2iYl9X8A 5 1 900000 0 395.7mb 198.7mb
+green open 2a7ade8e-5b74-44d4-81f9-5e2935072186 9K1dYgJRRC6YbcxdIleoXw 5 1 900000 0 394.3mb 197.8mb
+green open 24550098-3b7d-40b1-981b-d60d08f1ab62 qR0oPd0zRuS766NDcq6eaQ 5 1 900000 0   395mb 198.2mb
+green open d5a29a35-9c09-43e5-afcd-3beb07d66b04 3peRTZbURv--DE7ofA-Iaw 5 1 900000 0 395.3mb 198.2mb
+green open 7d12d071-ebce-41d5-9113-1a13a004a3f5 Bp7Pq-FkRUypN3zQF2IKIQ 5 1 900000 0 395.5mb 198.4mb
+green open e4329c5e-6d5e-4111-afc3-3eba2ad2c2ed KLLAu1sRQYqhUSe7DegIMw 5 1 900000 0   395mb 198.1mb
+green open 1ee5feb6-5bc1-4a54-b8fb-541a106139ce NMcdlNVLQ5GJfYkk7ieXWg 5 1 900000 0 395.4mb 198.3mb
+green open 1dd876a8-4919-414c-a1b6-335de41589e2 hJpjTQhwSsG3NKTxInE6Jg 5 1 900000 0 394.9mb 198.1mb
+green open 094d6f38-767a-4007-84e3-9a62b4a505e2 PnC3oynTSIO-SqDhxpkA8w 5 1 900000 0 395.2mb 198.2mb</code></pre>
+<p>Copy</p>
+<p>Overall space taken by these documents in OpenSearch cluster ~ 8.4 GiB</p>
+<h1>Benchmarking - Number of Nodes - [2] - t3.medium.search</h1>
+<figure class="table">
+  <table style="background-color:rgb(255, 255, 255);border-bottom:1px solid rgb(224, 224, 224);border-left:1px solid rgb(224, 224, 224);border-right:1px solid rgb(224, 224, 224);border-top:1px solid rgb(224, 224, 224);">
+    <tbody>
+      <tr>
+        <td style="border-bottom:1px solid rgb(207, 216, 220);border-left:1px solid rgb(207, 216, 220);border-right:1px solid rgb(207, 216, 220);border-top:1px solid rgb(207, 216, 220);padding:0.5rem 0.75rem;"><i><strong>Number of parallel requests / second</strong></i></td>
+        <td style="background-color:rgb(250, 250, 250);border-bottom:1px solid rgb(207, 216, 220);border-left:1px solid rgb(207, 216, 220);border-right:1px solid rgb(207, 216, 220);border-top:1px solid rgb(207, 216, 220);padding:0.5rem 0.75rem;"><i><strong>Time Taken to complete each request</strong></i></td>
+        <td style="border-bottom:1px solid rgb(207, 216, 220);border-left:1px solid rgb(207, 216, 220);border-right:1px solid rgb(207, 216, 220);border-top:1px solid rgb(207, 216, 220);padding:0.5rem 0.75rem;"><i><strong>Search Latency - Average</strong></i></td>
+        <td style="background-color:rgb(250, 250, 250);border-bottom:1px solid rgb(207, 216, 220);border-left:1px solid rgb(207, 216, 220);border-right:1px solid rgb(207, 216, 220);border-top:1px solid rgb(207, 216, 220);padding:0.5rem 0.75rem;"><i><strong>Search Latency Maximum</strong></i></td>
+        <td style="border-bottom:1px solid rgb(207, 216, 220);border-left:1px solid rgb(207, 216, 220);border-right:1px solid rgb(207, 216, 220);border-top:1px solid rgb(207, 216, 220);padding:0.5rem 0.75rem;"><i><strong>Max CPU Utilisation</strong></i></td>
+        <td style="background-color:rgb(250, 250, 250);border-bottom:1px solid rgb(207, 216, 220);border-left:1px solid rgb(207, 216, 220);border-right:1px solid rgb(207, 216, 220);border-top:1px solid rgb(207, 216, 220);padding:0.5rem 0.75rem;"><i><strong>JVM Pressure</strong></i></td>
+      </tr>
+      <tr>
+        <td style="background-color:rgb(250, 250, 250);border-bottom:1px solid rgb(207, 216, 220);border-left:1px solid rgb(207, 216, 220);border-right:1px solid rgb(207, 216, 220);border-top:1px solid rgb(207, 216, 220);padding:0.5rem 0.75rem;">20</td>
+        <td style="background-color:rgb(245, 245, 245);border-bottom:1px solid rgb(207, 216, 220);border-left:1px solid rgb(207, 216, 220);border-right:1px solid rgb(207, 216, 220);border-top:1px solid rgb(207, 216, 220);padding:0.5rem 0.75rem;">~ 3.2 seconds</td>
+        <td style="background-color:rgb(250, 250, 250);border-bottom:1px solid rgb(207, 216, 220);border-left:1px solid rgb(207, 216, 220);border-right:1px solid rgb(207, 216, 220);border-top:1px solid rgb(207, 216, 220);padding:0.5rem 0.75rem;">273 ms - First Search</td>
+        <td style="background-color:rgb(245, 245, 245);border-bottom:1px solid rgb(207, 216, 220);border-left:1px solid rgb(207, 216, 220);border-right:1px solid rgb(207, 216, 220);border-top:1px solid rgb(207, 216, 220);padding:0.5rem 0.75rem;">600 ms -First Search</td>
+        <td style="background-color:rgb(250, 250, 250);border-bottom:1px solid rgb(207, 216, 220);border-left:1px solid rgb(207, 216, 220);border-right:1px solid rgb(207, 216, 220);border-top:1px solid rgb(207, 216, 220);padding:0.5rem 0.75rem;">7-8% - First Search</td>
+        <td style="background-color:rgb(245, 245, 245);border-bottom:1px solid rgb(207, 216, 220);border-left:1px solid rgb(207, 216, 220);border-right:1px solid rgb(207, 216, 220);border-top:1px solid rgb(207, 216, 220);padding:0.5rem 0.75rem;">51.8 %</td>
+      </tr>
+      <tr>
+        <td style="border-bottom:1px solid rgb(207, 216, 220);border-left:1px solid rgb(207, 216, 220);border-right:1px solid rgb(207, 216, 220);border-top:1px solid rgb(207, 216, 220);padding:0.5rem 0.75rem;">40 - First Iteration</td>
+        <td style="background-color:rgb(250, 250, 250);border-bottom:1px solid rgb(207, 216, 220);border-left:1px solid rgb(207, 216, 220);border-right:1px solid rgb(207, 216, 220);border-top:1px solid rgb(207, 216, 220);padding:0.5rem 0.75rem;">~ 5.5 seconds</td>
+        <td style="border-bottom:1px solid rgb(207, 216, 220);border-left:1px solid rgb(207, 216, 220);border-right:1px solid rgb(207, 216, 220);border-top:1px solid rgb(207, 216, 220);padding:0.5rem 0.75rem;">173 ms</td>
+        <td style="background-color:rgb(250, 250, 250);border-bottom:1px solid rgb(207, 216, 220);border-left:1px solid rgb(207, 216, 220);border-right:1px solid rgb(207, 216, 220);border-top:1px solid rgb(207, 216, 220);padding:0.5rem 0.75rem;">189 - 173 ms</td>
+        <td style="border-bottom:1px solid rgb(207, 216, 220);border-left:1px solid rgb(207, 216, 220);border-right:1px solid rgb(207, 216, 220);border-top:1px solid rgb(207, 216, 220);padding:0.5rem 0.75rem;">7 %</td>
+        <td style="background-color:rgb(250, 250, 250);border-bottom:1px solid rgb(207, 216, 220);border-left:1px solid rgb(207, 216, 220);border-right:1px solid rgb(207, 216, 220);border-top:1px solid rgb(207, 216, 220);padding:0.5rem 0.75rem;">60-70 %</td>
+      </tr>
+      <tr>
+        <td style="background-color:rgb(250, 250, 250);border-bottom:1px solid rgb(207, 216, 220);border-left:1px solid rgb(207, 216, 220);border-right:1px solid rgb(207, 216, 220);border-top:1px solid rgb(207, 216, 220);padding:0.5rem 0.75rem;">40 - Second Iteration</td>
+        <td style="background-color:rgb(245, 245, 245);border-bottom:1px solid rgb(207, 216, 220);border-left:1px solid rgb(207, 216, 220);border-right:1px solid rgb(207, 216, 220);border-top:1px solid rgb(207, 216, 220);padding:0.5rem 0.75rem;">~ 5.3 seconds</td>
+        <td style="background-color:rgb(250, 250, 250);border-bottom:1px solid rgb(207, 216, 220);border-left:1px solid rgb(207, 216, 220);border-right:1px solid rgb(207, 216, 220);border-top:1px solid rgb(207, 216, 220);padding:0.5rem 0.75rem;">0 ms</td>
+        <td style="background-color:rgb(245, 245, 245);border-bottom:1px solid rgb(207, 216, 220);border-left:1px solid rgb(207, 216, 220);border-right:1px solid rgb(207, 216, 220);border-top:1px solid rgb(207, 216, 220);padding:0.5rem 0.75rem;">0 ms</td>
+        <td style="background-color:rgb(250, 250, 250);border-bottom:1px solid rgb(207, 216, 220);border-left:1px solid rgb(207, 216, 220);border-right:1px solid rgb(207, 216, 220);border-top:1px solid rgb(207, 216, 220);padding:0.5rem 0.75rem;">7 %</td>
+        <td style="background-color:rgb(245, 245, 245);border-bottom:1px solid rgb(207, 216, 220);border-left:1px solid rgb(207, 216, 220);border-right:1px solid rgb(207, 216, 220);border-top:1px solid rgb(207, 216, 220);padding:0.5rem 0.75rem;">60-70 %</td>
+      </tr>
+      <tr>
+        <td style="border-bottom:1px solid rgb(207, 216, 220);border-left:1px solid rgb(207, 216, 220);border-right:1px solid rgb(207, 216, 220);border-top:1px solid rgb(207, 216, 220);padding:0.5rem 0.75rem;">60&nbsp;</td>
+        <td style="background-color:rgb(250, 250, 250);border-bottom:1px solid rgb(207, 216, 220);border-left:1px solid rgb(207, 216, 220);border-right:1px solid rgb(207, 216, 220);border-top:1px solid rgb(207, 216, 220);padding:0.5rem 0.75rem;">~ 6-7 seconds</td>
+        <td style="border-bottom:1px solid rgb(207, 216, 220);border-left:1px solid rgb(207, 216, 220);border-right:1px solid rgb(207, 216, 220);border-top:1px solid rgb(207, 216, 220);padding:0.5rem 0.75rem;">0 ms</td>
+        <td style="background-color:rgb(250, 250, 250);border-bottom:1px solid rgb(207, 216, 220);border-left:1px solid rgb(207, 216, 220);border-right:1px solid rgb(207, 216, 220);border-top:1px solid rgb(207, 216, 220);padding:0.5rem 0.75rem;">&nbsp;0 ms</td>
+        <td style="border-bottom:1px solid rgb(207, 216, 220);border-left:1px solid rgb(207, 216, 220);border-right:1px solid rgb(207, 216, 220);border-top:1px solid rgb(207, 216, 220);padding:0.5rem 0.75rem;">7 %</td>
+        <td style="background-color:rgb(250, 250, 250);border-bottom:1px solid rgb(207, 216, 220);border-left:1px solid rgb(207, 216, 220);border-right:1px solid rgb(207, 216, 220);border-top:1px solid rgb(207, 216, 220);padding:0.5rem 0.75rem;">65 %</td>
+      </tr>
+    </tbody>
+  </table>
+</figure>
+<p><strong>Log files - With focus on Response time:</strong></p>
+<p>Now, we shall increase the number of shards to <code>4</code>.</p>
+<h1>Benchmarking - Number of Nodes - [4] - Number of Shards - [220] - t3.medium.search</h1>
+<figure class="table">
+  <table style="background-color:rgb(255, 255, 255);border-bottom:1px solid rgb(224, 224, 224);border-left:1px solid rgb(224, 224, 224);border-right:1px solid rgb(224, 224, 224);border-top:1px solid rgb(224, 224, 224);">
+    <tbody>
+      <tr>
+        <td style="border-bottom:1px solid rgb(207, 216, 220);border-left:1px solid rgb(207, 216, 220);border-right:1px solid rgb(207, 216, 220);border-top:1px solid rgb(207, 216, 220);padding:0.5rem 0.75rem;"><i><strong>Number of parallel requests / second</strong></i></td>
+        <td style="background-color:rgb(250, 250, 250);border-bottom:1px solid rgb(207, 216, 220);border-left:1px solid rgb(207, 216, 220);border-right:1px solid rgb(207, 216, 220);border-top:1px solid rgb(207, 216, 220);padding:0.5rem 0.75rem;"><i><strong>Time Taken to complete each request</strong></i></td>
+        <td style="border-bottom:1px solid rgb(207, 216, 220);border-left:1px solid rgb(207, 216, 220);border-right:1px solid rgb(207, 216, 220);border-top:1px solid rgb(207, 216, 220);padding:0.5rem 0.75rem;"><i><strong>Search Latency - Average</strong></i></td>
+        <td style="background-color:rgb(250, 250, 250);border-bottom:1px solid rgb(207, 216, 220);border-left:1px solid rgb(207, 216, 220);border-right:1px solid rgb(207, 216, 220);border-top:1px solid rgb(207, 216, 220);padding:0.5rem 0.75rem;"><i><strong>Search Latency Maximum</strong></i></td>
+        <td style="border-bottom:1px solid rgb(207, 216, 220);border-left:1px solid rgb(207, 216, 220);border-right:1px solid rgb(207, 216, 220);border-top:1px solid rgb(207, 216, 220);padding:0.5rem 0.75rem;"><i><strong>Max CPU Utilisation</strong></i></td>
+        <td style="background-color:rgb(250, 250, 250);border-bottom:1px solid rgb(207, 216, 220);border-left:1px solid rgb(207, 216, 220);border-right:1px solid rgb(207, 216, 220);border-top:1px solid rgb(207, 216, 220);padding:0.5rem 0.75rem;"><i><strong>JVM Pressure</strong></i></td>
+      </tr>
+      <tr>
+        <td style="background-color:rgb(250, 250, 250);border-bottom:1px solid rgb(207, 216, 220);border-left:1px solid rgb(207, 216, 220);border-right:1px solid rgb(207, 216, 220);border-top:1px solid rgb(207, 216, 220);padding:0.5rem 0.75rem;">20</td>
+        <td style="background-color:rgb(245, 245, 245);border-bottom:1px solid rgb(207, 216, 220);border-left:1px solid rgb(207, 216, 220);border-right:1px solid rgb(207, 216, 220);border-top:1px solid rgb(207, 216, 220);padding:0.5rem 0.75rem;">~ 2.5 seconds</td>
+        <td style="background-color:rgb(250, 250, 250);border-bottom:1px solid rgb(207, 216, 220);border-left:1px solid rgb(207, 216, 220);border-right:1px solid rgb(207, 216, 220);border-top:1px solid rgb(207, 216, 220);padding:0.5rem 0.75rem;">161 ms - First Search</td>
+        <td style="background-color:rgb(245, 245, 245);border-bottom:1px solid rgb(207, 216, 220);border-left:1px solid rgb(207, 216, 220);border-right:1px solid rgb(207, 216, 220);border-top:1px solid rgb(207, 216, 220);padding:0.5rem 0.75rem;">161 ms -First Search</td>
+        <td style="background-color:rgb(250, 250, 250);border-bottom:1px solid rgb(207, 216, 220);border-left:1px solid rgb(207, 216, 220);border-right:1px solid rgb(207, 216, 220);border-top:1px solid rgb(207, 216, 220);padding:0.5rem 0.75rem;">7-8% - First Search</td>
+        <td style="background-color:rgb(245, 245, 245);border-bottom:1px solid rgb(207, 216, 220);border-left:1px solid rgb(207, 216, 220);border-right:1px solid rgb(207, 216, 220);border-top:1px solid rgb(207, 216, 220);padding:0.5rem 0.75rem;">51.8 %</td>
+      </tr>
+      <tr>
+        <td style="border-bottom:1px solid rgb(207, 216, 220);border-left:1px solid rgb(207, 216, 220);border-right:1px solid rgb(207, 216, 220);border-top:1px solid rgb(207, 216, 220);padding:0.5rem 0.75rem;">40</td>
+        <td style="background-color:rgb(250, 250, 250);border-bottom:1px solid rgb(207, 216, 220);border-left:1px solid rgb(207, 216, 220);border-right:1px solid rgb(207, 216, 220);border-top:1px solid rgb(207, 216, 220);padding:0.5rem 0.75rem;">~ 2.5 - 3 seconds</td>
+        <td style="border-bottom:1px solid rgb(207, 216, 220);border-left:1px solid rgb(207, 216, 220);border-right:1px solid rgb(207, 216, 220);border-top:1px solid rgb(207, 216, 220);padding:0.5rem 0.75rem;">0 ms</td>
+        <td style="background-color:rgb(250, 250, 250);border-bottom:1px solid rgb(207, 216, 220);border-left:1px solid rgb(207, 216, 220);border-right:1px solid rgb(207, 216, 220);border-top:1px solid rgb(207, 216, 220);padding:0.5rem 0.75rem;">0 ms</td>
+        <td style="border-bottom:1px solid rgb(207, 216, 220);border-left:1px solid rgb(207, 216, 220);border-right:1px solid rgb(207, 216, 220);border-top:1px solid rgb(207, 216, 220);padding:0.5rem 0.75rem;">7 %</td>
+        <td style="background-color:rgb(250, 250, 250);border-bottom:1px solid rgb(207, 216, 220);border-left:1px solid rgb(207, 216, 220);border-right:1px solid rgb(207, 216, 220);border-top:1px solid rgb(207, 216, 220);padding:0.5rem 0.75rem;">56 %</td>
+      </tr>
+      <tr>
+        <td style="background-color:rgb(250, 250, 250);border-bottom:1px solid rgb(207, 216, 220);border-left:1px solid rgb(207, 216, 220);border-right:1px solid rgb(207, 216, 220);border-top:1px solid rgb(207, 216, 220);padding:0.5rem 0.75rem;">60&nbsp;</td>
+        <td style="background-color:rgb(245, 245, 245);border-bottom:1px solid rgb(207, 216, 220);border-left:1px solid rgb(207, 216, 220);border-right:1px solid rgb(207, 216, 220);border-top:1px solid rgb(207, 216, 220);padding:0.5rem 0.75rem;">~ 3 seconds</td>
+        <td style="background-color:rgb(250, 250, 250);border-bottom:1px solid rgb(207, 216, 220);border-left:1px solid rgb(207, 216, 220);border-right:1px solid rgb(207, 216, 220);border-top:1px solid rgb(207, 216, 220);padding:0.5rem 0.75rem;">0 ms</td>
+        <td style="background-color:rgb(245, 245, 245);border-bottom:1px solid rgb(207, 216, 220);border-left:1px solid rgb(207, 216, 220);border-right:1px solid rgb(207, 216, 220);border-top:1px solid rgb(207, 216, 220);padding:0.5rem 0.75rem;">&nbsp;0 ms</td>
+        <td style="background-color:rgb(250, 250, 250);border-bottom:1px solid rgb(207, 216, 220);border-left:1px solid rgb(207, 216, 220);border-right:1px solid rgb(207, 216, 220);border-top:1px solid rgb(207, 216, 220);padding:0.5rem 0.75rem;">7 %</td>
+        <td style="background-color:rgb(245, 245, 245);border-bottom:1px solid rgb(207, 216, 220);border-left:1px solid rgb(207, 216, 220);border-right:1px solid rgb(207, 216, 220);border-top:1px solid rgb(207, 216, 220);padding:0.5rem 0.75rem;">65 %</td>
+      </tr>
+    </tbody>
+  </table>
+</figure>
+<h1>Benchmarking - Number of Nodes - [6] - Number of Shards - [310] - t3.medium.search</h1>
+<figure class="table">
+  <table style="background-color:rgb(255, 255, 255);border-bottom:1px solid rgb(224, 224, 224);border-left:1px solid rgb(224, 224, 224);border-right:1px solid rgb(224, 224, 224);border-top:1px solid rgb(224, 224, 224);">
+    <tbody>
+      <tr>
+        <td style="border-bottom:1px solid rgb(207, 216, 220);border-left:1px solid rgb(207, 216, 220);border-right:1px solid rgb(207, 216, 220);border-top:1px solid rgb(207, 216, 220);padding:0.5rem 0.75rem;"><i><strong>Number of parallel requests / second</strong></i></td>
+        <td style="background-color:rgb(250, 250, 250);border-bottom:1px solid rgb(207, 216, 220);border-left:1px solid rgb(207, 216, 220);border-right:1px solid rgb(207, 216, 220);border-top:1px solid rgb(207, 216, 220);padding:0.5rem 0.75rem;"><i><strong>Time Taken to complete each request</strong></i></td>
+        <td style="border-bottom:1px solid rgb(207, 216, 220);border-left:1px solid rgb(207, 216, 220);border-right:1px solid rgb(207, 216, 220);border-top:1px solid rgb(207, 216, 220);padding:0.5rem 0.75rem;"><i><strong>Search Latency - Average</strong></i></td>
+        <td style="background-color:rgb(250, 250, 250);border-bottom:1px solid rgb(207, 216, 220);border-left:1px solid rgb(207, 216, 220);border-right:1px solid rgb(207, 216, 220);border-top:1px solid rgb(207, 216, 220);padding:0.5rem 0.75rem;"><i><strong>Search Latency Maximum</strong></i></td>
+        <td style="border-bottom:1px solid rgb(207, 216, 220);border-left:1px solid rgb(207, 216, 220);border-right:1px solid rgb(207, 216, 220);border-top:1px solid rgb(207, 216, 220);padding:0.5rem 0.75rem;"><i><strong>Max CPU Utilisation</strong></i></td>
+        <td style="background-color:rgb(250, 250, 250);border-bottom:1px solid rgb(207, 216, 220);border-left:1px solid rgb(207, 216, 220);border-right:1px solid rgb(207, 216, 220);border-top:1px solid rgb(207, 216, 220);padding:0.5rem 0.75rem;"><i><strong>JVM Pressure</strong></i></td>
+      </tr>
+      <tr>
+        <td style="background-color:rgb(250, 250, 250);border-bottom:1px solid rgb(207, 216, 220);border-left:1px solid rgb(207, 216, 220);border-right:1px solid rgb(207, 216, 220);border-top:1px solid rgb(207, 216, 220);padding:0.5rem 0.75rem;">20</td>
+        <td style="background-color:rgb(245, 245, 245);border-bottom:1px solid rgb(207, 216, 220);border-left:1px solid rgb(207, 216, 220);border-right:1px solid rgb(207, 216, 220);border-top:1px solid rgb(207, 216, 220);padding:0.5rem 0.75rem;">~ 2.5 seconds</td>
+        <td style="background-color:rgb(250, 250, 250);border-bottom:1px solid rgb(207, 216, 220);border-left:1px solid rgb(207, 216, 220);border-right:1px solid rgb(207, 216, 220);border-top:1px solid rgb(207, 216, 220);padding:0.5rem 0.75rem;">161 ms - First Search</td>
+        <td style="background-color:rgb(245, 245, 245);border-bottom:1px solid rgb(207, 216, 220);border-left:1px solid rgb(207, 216, 220);border-right:1px solid rgb(207, 216, 220);border-top:1px solid rgb(207, 216, 220);padding:0.5rem 0.75rem;">161 ms -First Search</td>
+        <td style="background-color:rgb(250, 250, 250);border-bottom:1px solid rgb(207, 216, 220);border-left:1px solid rgb(207, 216, 220);border-right:1px solid rgb(207, 216, 220);border-top:1px solid rgb(207, 216, 220);padding:0.5rem 0.75rem;">7-8% - First Search</td>
+        <td style="background-color:rgb(245, 245, 245);border-bottom:1px solid rgb(207, 216, 220);border-left:1px solid rgb(207, 216, 220);border-right:1px solid rgb(207, 216, 220);border-top:1px solid rgb(207, 216, 220);padding:0.5rem 0.75rem;">51.8 %</td>
+      </tr>
+      <tr>
+        <td style="border-bottom:1px solid rgb(207, 216, 220);border-left:1px solid rgb(207, 216, 220);border-right:1px solid rgb(207, 216, 220);border-top:1px solid rgb(207, 216, 220);padding:0.5rem 0.75rem;">40</td>
+        <td style="background-color:rgb(250, 250, 250);border-bottom:1px solid rgb(207, 216, 220);border-left:1px solid rgb(207, 216, 220);border-right:1px solid rgb(207, 216, 220);border-top:1px solid rgb(207, 216, 220);padding:0.5rem 0.75rem;">~ 2.5 - 3 seconds</td>
+        <td style="border-bottom:1px solid rgb(207, 216, 220);border-left:1px solid rgb(207, 216, 220);border-right:1px solid rgb(207, 216, 220);border-top:1px solid rgb(207, 216, 220);padding:0.5rem 0.75rem;">0 ms</td>
+        <td style="background-color:rgb(250, 250, 250);border-bottom:1px solid rgb(207, 216, 220);border-left:1px solid rgb(207, 216, 220);border-right:1px solid rgb(207, 216, 220);border-top:1px solid rgb(207, 216, 220);padding:0.5rem 0.75rem;">0 ms</td>
+        <td style="border-bottom:1px solid rgb(207, 216, 220);border-left:1px solid rgb(207, 216, 220);border-right:1px solid rgb(207, 216, 220);border-top:1px solid rgb(207, 216, 220);padding:0.5rem 0.75rem;">7 %</td>
+        <td style="background-color:rgb(250, 250, 250);border-bottom:1px solid rgb(207, 216, 220);border-left:1px solid rgb(207, 216, 220);border-right:1px solid rgb(207, 216, 220);border-top:1px solid rgb(207, 216, 220);padding:0.5rem 0.75rem;">56 %</td>
+      </tr>
+      <tr>
+        <td style="background-color:rgb(250, 250, 250);border-bottom:1px solid rgb(207, 216, 220);border-left:1px solid rgb(207, 216, 220);border-right:1px solid rgb(207, 216, 220);border-top:1px solid rgb(207, 216, 220);padding:0.5rem 0.75rem;">60&nbsp;</td>
+        <td style="background-color:rgb(245, 245, 245);border-bottom:1px solid rgb(207, 216, 220);border-left:1px solid rgb(207, 216, 220);border-right:1px solid rgb(207, 216, 220);border-top:1px solid rgb(207, 216, 220);padding:0.5rem 0.75rem;">~ 3 seconds</td>
+        <td style="background-color:rgb(250, 250, 250);border-bottom:1px solid rgb(207, 216, 220);border-left:1px solid rgb(207, 216, 220);border-right:1px solid rgb(207, 216, 220);border-top:1px solid rgb(207, 216, 220);padding:0.5rem 0.75rem;">0 ms</td>
+        <td style="background-color:rgb(245, 245, 245);border-bottom:1px solid rgb(207, 216, 220);border-left:1px solid rgb(207, 216, 220);border-right:1px solid rgb(207, 216, 220);border-top:1px solid rgb(207, 216, 220);padding:0.5rem 0.75rem;">&nbsp;0 ms</td>
+        <td style="background-color:rgb(250, 250, 250);border-bottom:1px solid rgb(207, 216, 220);border-left:1px solid rgb(207, 216, 220);border-right:1px solid rgb(207, 216, 220);border-top:1px solid rgb(207, 216, 220);padding:0.5rem 0.75rem;">7 %</td>
+        <td style="background-color:rgb(245, 245, 245);border-bottom:1px solid rgb(207, 216, 220);border-left:1px solid rgb(207, 216, 220);border-right:1px solid rgb(207, 216, 220);border-top:1px solid rgb(207, 216, 220);padding:0.5rem 0.75rem;">65 %</td>
+      </tr>
+    </tbody>
+  </table>
+</figure>
+<h1>Observation</h1>
+<p>As data grows, it is beneficial to add more nodes as the data under an index in our use case is distributed across shards. The below is how an index is split across multiple shards (55~56 shards in our case). Some indexes were removed here for brevity. &nbsp;So if we go with the above metrics,&nbsp;</p>
+<pre><code class="language-plaintext">index                                shard prirep state     docs  store ip            node
+2862c1b7-24b0-4fbc-b6bf-cda9ca413ab2 2     r      STARTED 180078 39.4mb x.x.x.x 1ae11744b7d470c7b73a32b20af4833d
+2862c1b7-24b0-4fbc-b6bf-cda9ca413ab2 2     p      STARTED 180078 39.4mb x.x.x.x 66f2a1be95ed117c009e7c888bf82233
+2862c1b7-24b0-4fbc-b6bf-cda9ca413ab2 1     p      STARTED 179547 39.5mb x.x.x.x a6c067bc9b1f8eafd66d5759260407f4
+2862c1b7-24b0-4fbc-b6bf-cda9ca413ab2 1     r      STARTED 179547 39.5mb x.x.x.x 1b6dec9baf668d9954e33d5931a65368
+2862c1b7-24b0-4fbc-b6bf-cda9ca413ab2 3     p      STARTED 180471 39.8mb x.x.x.x 66f2a1be95ed117c009e7c888bf82233
+2862c1b7-24b0-4fbc-b6bf-cda9ca413ab2 3     r      STARTED 180471 39.8mb x.x.x.x a6c067bc9b1f8eafd66d5759260407f4
+2862c1b7-24b0-4fbc-b6bf-cda9ca413ab2 4     r      STARTED 180491 39.8mb x.x.x.x 1ae11744b7d470c7b73a32b20af4833d
+2862c1b7-24b0-4fbc-b6bf-cda9ca413ab2 4     p      STARTED 180491 39.8mb x.x.x.x 1b6dec9baf668d9954e33d5931a65368
+2862c1b7-24b0-4fbc-b6bf-cda9ca413ab2 0     r      STARTED 179413 39.2mb x.x.x.x 66f2a1be95ed117c009e7c888bf82233
+2862c1b7-24b0-4fbc-b6bf-cda9ca413ab2 0     p      STARTED 179413 39.2mb x.x.x.x a6c067bc9b1f8eafd66d5759260407f4
+aa2c2031-8196-46f3-a065-2c607560102e 2     p      STARTED 180119 39.5mb x.x.x.x 1ae11744b7d470c7b73a32b20af4833d
+aa2c2031-8196-46f3-a065-2c607560102e 2     r      STARTED 180119 39.5mb x.x.x.x 1b6dec9baf668d9954e33d5931a65368
+aa2c2031-8196-46f3-a065-2c607560102e 1     r      STARTED 179087 39.4mb x.x.x.x 66f2a1be95ed117c009e7c888bf82233
+aa2c2031-8196-46f3-a065-2c607560102e 1     p      STARTED 179087 39.4mb x.x.x.x a6c067bc9b1f8eafd66d5759260407f4
+aa2c2031-8196-46f3-a065-2c607560102e 3     r      STARTED 180314 39.9mb x.x.x.x 66f2a1be95ed117c009e7c888bf82233
+aa2c2031-8196-46f3-a065-2c607560102e 3     p      STARTED 180314 39.9mb x.x.x.x 1b6dec9baf668d9954e33d5931a65368
+aa2c2031-8196-46f3-a065-2c607560102e 4     r      STARTED 180594 39.8mb x.x.x.x 1ae11744b7d470c7b73a32b20af4833d
+aa2c2031-8196-46f3-a065-2c607560102e 4     p      STARTED 180594 39.8mb x.x.x.x a6c067bc9b1f8eafd66d5759260407f4
+aa2c2031-8196-46f3-a065-2c607560102e 0     p      STARTED 179886 39.5mb x.x.x.x 1ae11744b7d470c7b73a32b20af4833d
+aa2c2031-8196-46f3-a065-2c607560102e 0     r      STARTED 179886 39.5mb x.x.x.x 66f2a1be95ed117c009e7c888bf82233
+094d6f38-767a-4007-84e3-9a62b4a505e2 2     p      STARTED 180207 39.7mb x.x.x.x 66f2a1be95ed117c009e7c888bf82233
+094d6f38-767a-4007-84e3-9a62b4a505e2 2     r      STARTED 180207 39.7mb x.x.x.x 1b6dec9baf668d9954e33d5931a65368
+094d6f38-767a-4007-84e3-9a62b4a505e2 1     p      STARTED 180119 39.8mb x.x.x.x 66f2a1be95ed117c009e7c888bf82233
+094d6f38-767a-4007-84e3-9a62b4a505e2 1     r      STARTED 180119 39.8mb x.x.x.x 1b6dec9baf668d9954e33d5931a65368
+094d6f38-767a-4007-84e3-9a62b4a505e2 3     p      STARTED 179461 39.5mb x.x.x.x 66f2a1be95ed117c009e7c888bf82233
+094d6f38-767a-4007-84e3-9a62b4a505e2 3     r      STARTED 179461 39.5mb x.x.x.x 1b6dec9baf668d9954e33d5931a65368
+094d6f38-767a-4007-84e3-9a62b4a505e2 4     p      STARTED 180139 39.5mb x.x.x.x 1ae11744b7d470c7b73a32b20af4833d
+094d6f38-767a-4007-84e3-9a62b4a505e2 4     r      STARTED 180139 39.5mb x.x.x.x a6c067bc9b1f8eafd66d5759260407f4
+094d6f38-767a-4007-84e3-9a62b4a505e2 0     p      STARTED 180074 39.5mb x.x.x.x 1ae11744b7d470c7b73a32b20af4833d
+094d6f38-767a-4007-84e3-9a62b4a505e2 0     r      STARTED 180074 39.5mb x.x.x.x a6c067bc9b1f8eafd66d5759260407f4</code></pre>
+<p>Copy</p>
+<p>&nbsp;</p>
+<h1>Conclusion</h1>
+<ol>
+  <li>Since we are going to extensively use <code>wildcard</code> queries for searching <code>description/narration</code> , the use of wildcards are very expensive. Consider the below screenshot pointed out in elastic docs.<br>&nbsp;</li>
+</ol>
+<figure class="image"><img src="https://wiki.breaksignal.com/screenshot_2023-03-21_at_10.55.25_am.png"></figure>
+<p>Since OpenSearch is a fork of elasticsearch and the handling features of <code>wildcard</code> and <code>range</code> is exactly same.</p>
+<p>2. If we really want to use OpenSearch, then we will be using it as a Database but not as a search engine (which is its primary) use case.</p>
+<p>3. Even with the introduction of trigrams (n-gram with n=3) there was very minimal difference in performance.</p>
+<p>4. The performance did not improve if the size of data is fixed and the number of nodes were increased.</p>

@@ -1,0 +1,474 @@
+<!--
+title: Scalable and Efficient Full-Text Searches in Postgres
+description: 
+published: true
+date: 2023-06-24T08:58:49.073Z
+tags: postgres, database, trigram, indexes, full-text search
+editor: ckeditor
+dateCreated: 2023-06-24T08:57:58.645Z
+-->
+
+<h1 style="text-align:center;">Scalable Full-Text Searches - Bank Statement Analysis - POC on PostgreSQL - 001</h1>
+<p>Total number of records in table <code>transaction<i>records</i></code><i> = 2,09,73,479 (Two crore, 9 Lakh +)</i></p>
+<h2>Problem Statement:&nbsp;</h2>
+<p>Given a huge number of records of a schema given below, find an efficient and fast way to get pattern matching records. &nbsp;Below is the schema of <code>transaction_records</code> table.</p>
+<pre><code class="language-plaintext">CREATE TABLE IF NOT EXISTS bank.transaction_records
+(
+    id character varying NOT NULL,
+    account_no character varying NOT NULL,
+    transaction_date date NOT NULL,
+    chq_no character varying,
+    highlight boolean,
+    sl_no integer,
+    is_debit boolean,
+    debit_amt double precision,
+    credit_amt double precision,
+    description text,
+    category text,
+    CONSTRAINT transaction_records_pkey PRIMARY KEY (id)
+)</code></pre>
+<p>Copy</p>
+<p>Use the below example query to fetch and count records:</p>
+<pre><code class="language-plaintext">SELECT * FROM bank.transaction_records WHERE description LIKE '%NEFT%';
+
+OR
+
+SELECT COUNT(*) from bank.transaction_records WHERE description LIKE '%NEFT%';</code></pre>
+<p>Copy</p>
+<h1>The data - generating distinct description every time</h1>
+<p>We will use the below script to populate large data in postgres. The main motive of this data is to match text, so populating distinct description for every record is essential, to understand how indexes perform with variety of data. Hence there can be some variations wrt to column names in above schema. We shall use <code>essential_generators</code> python package to generate random statements every time.</p>
+<pre><code class="language-python">import uuid
+from concurrent.futures import ThreadPoolExecutor, as_completed
+from essential_generators import DocumentGenerator
+
+import psycopg2
+import csv
+import datetime
+import dateutil.parser as parser
+
+category_list = ["createFinance",
+"sendLoanAgreement",
+"fraudCheck",
+"blackBoxInvoker",
+"updateLoanStartDate",
+"withdrawalInstruction",
+"updateLoanDetails",
+"virtualAccountCreation",
+"customerCreation",
+"generateCLPScheduleLetter",
+"GstinConsentLink",
+"disbursalConfirmationReceived",
+"pushToDisbursementQueue",
+"skipPullAndParseBureau",
+"updateWorkflowId",
+"uploadBureauReport",
+"bureauPull",
+"groupAmountRecalculate",
+"statusChange",
+"loanDisbursal",
+"uploadExternalBureau",
+"appFormStatus",
+"groupApprovalForPending",
+"validateDocsPresent",
+"appFormSave",
+"updateOpsWorkflowId",
+"groupApproved",
+"ids",
+"pennantWorkflow",
+"createOrUpdateCustomer",
+"appFormStatusUpdate",
+"appFormEntityMatching",
+"dedupe",
+"withdrawalConfirmation",
+"checkForBureauPull",
+"preApprovalOfferPolicy",
+"RejectRepayment",
+"disbursalTrigger",
+"sendCLPScheduleLetter"]
+import random
+
+counter = 0
+gen = DocumentGenerator()
+
+def run_methods():
+    global counter
+    for i in range(0, 20):
+        try:
+            connection = psycopg2.connect(user="shashankj", password="Shashank@1999", host="127.0.0.1",
+                                          port="5432", database="postgres")
+            cursor = connection.cursor()
+            with open('BankStatementsData.csv', 'r') as bs:
+                reader = csv.DictReader(bs)
+                for line in reader:
+                    counter = counter + 1
+                    withdrawal_amount = line['withdrawal_amt']
+                    if withdrawal_amount is None or withdrawal_amount.strip() == '':
+                        withdrawal_amount = float("0.0")
+                    else:
+                        withdrawal_amount = float(withdrawal_amount.strip().replace(',', ''))
+
+                    deposit_amount = line['deposit_amt']
+                    if deposit_amount is None or deposit_amount.strip() == '':
+                        deposit_amount = float("0.0")
+                    else:
+                        deposit_amount = float(deposit_amount.strip().replace(',', ''))
+
+                    balance_amount = line['balance_amt']
+                    if balance_amount is None or balance_amount.strip() == '':
+                        balance_amount = float("0.0")
+                    else:
+                        balance_amount = float(balance_amount.strip().replace(',', ''))
+
+                    INSERT_QUERY = """INSERT INTO bank.transaction_records (id, account_no, transaction_date, chq_no,
+                    highlight, sl_no, is_debit, debit_amt, credit_amt, description, category) VALUES (%s, %s, %s, %s, %s, %s,
+                    %s, %s, %s, %s, %s); """
+
+                    account_num = str(line['account_no'].replace("'", ''))
+                    transaction_id = str(account_num) + '-' + str(uuid.uuid4())
+                    chq_no = line['chq_no']
+                    transaction_date = datetime.datetime.strptime(
+                        parser.parse(line['value_date']).date().strftime("%Y-%m-%dT%H:%M:%S.000Z"),
+                        '%Y-%m-%dT%H:%M:%S.000Z')
+                    description = gen.sentence()
+                    category = random.choice(category_list)
+
+                    is_debit = False
+                    if withdrawal_amount &gt; 0:
+                        is_debit = True
+
+                    record_to_insert = (transaction_id, account_num, transaction_date, chq_no, False, counter, is_debit,
+                                        withdrawal_amount, deposit_amount, description, category)
+
+                    cursor.execute(INSERT_QUERY, record_to_insert)
+                    connection.commit()
+        except Exception as e:
+            print(str(e))
+        print('Iteration: {} completed.'.format(i))
+
+
+if __name__ == '__main__':
+    to_do = []
+    with ThreadPoolExecutor(max_workers=8) as executor:
+        for i in range(0, 8):
+            to_do.append(executor.submit(run_methods))
+    for future in as_completed(to_do):
+        print("future: {}, result {} ".format(future, future.result()))</code></pre>
+<p>Copy</p>
+<p>&nbsp;</p>
+<h1>POC - Without using any Indexes</h1>
+<p>Query ran without use of any indexed data.<br>Note: <code>max_worker_processess = 8</code></p>
+<pre><code class="language-plaintext">SELECT COUNT(*) FROM bank.transaction_records WHERE description LIKE '%NEFT%'; ~ 14 seconds = 16,49,860 records
+
+SELECT * FROM bank.transaction_records WHERE description ILIKE '%NEFT%'; ~ 12 seconds</code></pre>
+<p>Copy</p>
+<p>Use of other data types was also tried including <code>character varying</code>, <code>text</code>, and <code>char</code>. It made no difference as the underlying datatype is based on Postgres's <code>varlena</code>. The below text is taken from official Postgres documentation.</p>
+<pre><code class="language-plaintext">There is no performance difference among these three types,
+apart from increased storage space when using the blank-padded
+type and a few extra CPU cycles to check the length when storing into a
+length-constrained column. While character(n) it has performance
+advantages in some other database systems, PostgreSQL has no such advantage.
+In fact, character(n) it is usually the slowest of the three because of
+its additional storage costs. In most situations text or character varying should be used instead.</code></pre>
+<p>Copy</p>
+<p>&nbsp;</p>
+<h1>The actual problem of full text searches</h1>
+<p>Consider a string <code>shashank</code> an and here we need to search for a string <code>nk</code>. The only solution is to iterate all values in subsets and check if any subset contains <code>nk</code>. This is because the value can appear anywhere and search on index won't help as we'd still have to compare every value one by one with no way of reducing the set of rows to search through. This leads to slow query performance.</p>
+<p>Let us explore few basic search process that Postgres offers. To start with let's go with a full text search.</p>
+<p>To do a full text search in Postgres - consider the below command:</p>
+<pre><code class="language-plaintext">SELECT *
+FROM bank.transactions
+WHERE to_tsvector('english', description) @@ to_tsquery('english', 'EMI');</code></pre>
+<p>Copy</p>
+<p><code>to_tsvector</code> parses a textual document into tokens, reduces the tokens to lexemes, and returns a <code>tsvector</code> which lists the lexemes together with their positions in the document. The document is processed according to the specified or default text search configuration. Here is a simple example:</p>
+<pre><code class="language-plaintext">SELECT to_tsvector('english', 'NEFT/DTF SRI RAMANANDA FINANCE EMI'); #english - configuration specifed to tell Postgres on which config to split
+
+          to_tsvector
+------------------------------------------------------
+'emi':5 'financ':4 'neft/dtf':1 'ramananda':3 'sri':2</code></pre>
+<p>Copy</p>
+<p><code>to_tsquery</code> creates a <code>tsquery</code> value from <code>querytext</code>, which must consist of single tokens separated by the <code>tsquery</code> operators <code>&amp;</code> (AND), <code>|</code> (OR), <code>!</code> (NOT), and <code>&lt;-&gt;</code> (FOLLOWED BY), possibly grouped using parentheses. In other words, the input to <code>to_tsquery</code> must already follow the general rules for <code>tsquery</code> input. The difference is that while basic <code>tsquery</code> input takes the tokens at face value, <code>to_tsquery</code> normalizes each token into a lexeme using the specified or default configuration, and discards any tokens that are stop words according to the configuration. For example:</p>
+<pre><code class="language-plaintext">SELECT to_tsquery('english', 'NEFT &amp; EMI'); #english - configuration specifed to tell Postgres on which config to split
+
+  to_tsquery
+---------------
+ 'neft' &amp; 'emi'</code></pre>
+<p>Copy</p>
+<p>Now in order to utilize the full text search functionality, we have to keep a separate vector say <code>description_ts_vector</code>. For every entry that we add into the <code>transaction_records</code> table we have to update the vector. To do this we might need to write a trigger or script to update individual entry or vector as whole.</p>
+<p>Another problem with full text search is that words are broken up according to the rules defined by the language of the text. For example, on PostgreSQL converting <code>NEFT/DTF SRI RAMANANDA FINANCE EMI</code> to a text vector results in the values <code>emi</code>, <code>financ</code>, <code>neft/dtf</code>, <code>ramananda</code> and <code>sri</code>. This means that searching for <code>finance</code> or <code>ramananda</code> <i>will</i> match the data, but searching for <code>rama</code> <i>will not</i>. To showcase this we can run the following query in PostgreSQL:</p>
+<p><strong>To showcase that full token search works</strong></p>
+<pre><code class="language-plaintext">SELECT 1
+WHERE to_tsvector('english', 'NEFT/DTF SRI RAMANANDA FINANCE EMI') @@ to_tsquery('english', 'FINANCE');
+
+# Output
+---
+ 1
+---</code></pre>
+<p>Copy</p>
+<p><strong>To showcase that partial token search wont work</strong></p>
+<pre><code class="language-plaintext">SELECT 1
+WHERE to_tsvector('english', 'NEFT/DTF SRI RAMANANDA FINANCE EMI') @@ to_tsquery('english', 'RAMA');
+
+# Output - No Output
+---
+---</code></pre>
+<p>Copy</p>
+<h1>The Postgres - Trigram Indexes</h1>
+<p><strong>Trigrams</strong> are a special case of the<code>n-gram</code> where n is 3. In the fields of computational linguistics and probability, an <i><strong>n</strong></i><strong>-gram</strong> (sometimes also called <strong>Q-gram</strong>) is a contiguous sequence of <i>n</i> items from a given sample of text or speech. Trigrams are basically words broken up into sequences of 3 letters. Consider word <code>shashank</code> the possible trigrams of this word will be:</p>
+<pre><code class="language-plaintext">s h a
+h a s
+a s h
+s h a
+h a n
+a n k</code></pre>
+<p>Copy</p>
+<p>Basically we need to generate all trigrams and store them into a vector and apply text matching on these and reverse find the indexes to fetch desired results. We can skill all these boilerplate code by using Postgres's inbuilt <code>pg_tram</code> extension. To demonstrate we shall use the below query:</p>
+<pre><code class="language-plaintext">select show_trgm('NEFT/DTF SRI RAMANANDA FINANCE EMI');
+
+                                  trgm's
+-----------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+{"  d","  e","  f","  n","  r","  s"," dt"," em"," fi"," ne"," ra"," sr",ama,ana,anc,and,"ce ","da ",dtf,eft,emi,fin,"ft ",ina,man,"mi ",nan,nce,nda,nef,ram,"ri ",sri,"tf "}</code></pre>
+<p>Copy</p>
+<p>A big benefit of this extension is that these trigram indexes can be used by the LIKE and ILIKE conditions without having to change your queries or setting up complex full text search systems. As you see the gram size is not more than 3. Additionally we need to configure the inverted indexes on the desired text.&nbsp;</p>
+<p>To create GIN index (<strong>Generalised Inverted Index</strong>):</p>
+<pre><code class="language-plaintext">CREATE INDEX CONCURRENTLY transaction_records_description_trigram_idx
+ON bank.transaction_records
+USING gin (description gin_trgm_ops);
+
+Query returned successfully in 7 min 45 secs.</code></pre>
+<p>Copy</p>
+<p>&nbsp;The use of <code>pattern_ops</code> strategy reduces the number of different operations that can be performed on indexes. The main reason for having operator classes is that for some data types, there could be more than one meaningful index behaviour. Reducing the number of behaviours available for a particular index, helps the postgres query planner to efficiently generate a plan, else the planner resorts to naive sequential scans.</p>
+<p>Let us now try to get the transaction records. Similarly we can also paginate with standard <code>LIMIT-OFFSET</code> approach.</p>
+<h3><mark class="marker-yellow">Get First 10000 transactions which have substring </mark><code><mark class="marker-yellow">eur</mark></code><mark class="marker-yellow"> in them.</mark></h3>
+<pre><code class="language-plaintext">SELECT description
+FROM bank.transaction_records
+WHERE description ILIKE '%eur%' LIMIT 10000;
+
+                                QUERY PLAN
+------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+ Limit  (cost=2743.45..26618.23 rows=10000 width=60) (actual time=67.843..112.752 rows=10000 loops=1)
+   Output: description
+   Buffers: shared hit=7278
+   -&gt;  Gather  (cost=2743.45..451111.93 rows=187800 width=60) (actual time=67.841..112.332 rows=10000 loops=1)
+         Output: description
+         Workers Planned: 2
+         Workers Launched: 2
+         Buffers: shared hit=7278
+         -&gt;  Parallel Bitmap Heap Scan on bank.transaction_records  (cost=1743.45..431331.93 rows=78250 width=60) (actual time=61.740..104.362 rows=3336 loops=3)
+               Output: description
+               Recheck Cond: (transaction_records.description ~~* '%eur%'::text)
+               Rows Removed by Index Recheck: 93225
+               Heap Blocks: lossy=2545
+               Buffers: shared hit=7278
+               Worker 0:  actual time=58.859..101.643 rows=3152 loops=1
+                 Buffers: shared hit=2260
+               Worker 1:  actual time=58.905..101.858 rows=3293 loops=1
+                 Buffers: shared hit=2392
+               -&gt;  Bitmap Index Scan on transaction_records_description_trigram_idx  (cost=0.00..1696.50 rows=187800 width=0) (actual time=61.057..61.057 rows=344056 loops=1)
+                     Index Cond: (transaction_records.description ~~* '%eur%'::text)
+                     Buffers: shared hit=81
+ Planning:
+   Buffers: shared hit=1
+ Planning Time: 0.317 ms
+ Execution Time: 113.034 ms
+ ===================================================================================================================================================================================</code></pre>
+<p>Copy</p>
+<h3><mark class="marker-yellow">Skip first 1000 transactions and get me next 1000 records - Number of parallel gather workers = 2</mark></h3>
+<pre><code class="language-plaintext">SELECT description
+FROM bank.transaction_records
+WHERE description ILIKE '%eur%' OFFSET 1000 LIMIT 1000;
+
+                                                                                 QUERY PLAN
+-------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+ Limit  (cost=26618.23..29005.71 rows=1000 width=60) (actual time=110.947..119.468 rows=1000 loops=1)
+   Output: description
+   Buffers: shared hit=7985
+   -&gt;  Gather  (cost=2743.45..451111.93 rows=187800 width=60) (actual time=67.363..119.026 rows=11000 loops=1)
+         Output: description
+         Workers Planned: 2
+         Workers Launched: 2
+         Buffers: shared hit=7985
+         -&gt;  Parallel Bitmap Heap Scan on bank.transaction_records  (cost=1743.45..431331.93 rows=78250 width=60) (actual time=60.138..109.573 rows=3668 loops=3)
+               Output: description
+               Recheck Cond: (transaction_records.description ~~* '%eur%'::text)
+               Rows Removed by Index Recheck: 102543
+               Heap Blocks: lossy=2728
+               Buffers: shared hit=7985
+               Worker 0:  actual time=55.883..105.506 rows=3544 loops=1
+                 Buffers: shared hit=2545
+               Worker 1:  actual time=57.547..107.318 rows=3659 loops=1
+                 Buffers: shared hit=2631
+               -&gt;  Bitmap Index Scan on transaction_records_description_trigram_idx  (cost=0.00..1696.50 rows=187800 width=0) (actual time=60.510..60.511 rows=344056 loops=1)
+                     Index Cond: (transaction_records.description ~~* '%eur%'::text)
+                     Buffers: shared hit=81
+ Planning:
+   Buffers: shared hit=1
+ Planning Time: 0.272 ms
+ Execution Time: 119.548 ms
+(25 rows)
+
+postgres=# EXPLAIN (analyze, verbose, timing, costs, buffers) SELECT description FROM bank.transaction_records WHERE description ILIKE '%eur%' OFFSET 1000 LIMIT 1000;
+                                                              QUERY PLAN
+---------------------------------------------------------------------------------------------------------------------------------------
+ Limit  (cost=3707.64..7415.28 rows=1000 width=60) (actual time=52.121..79.359 rows=1000 loops=1)
+   Output: description
+   Buffers: shared hit=7 read=2649
+   -&gt;  Seq Scan on bank.transaction_records  (cost=0.00..696295.00 rows=187800 width=60) (actual time=0.094..79.244 rows=2000 loops=1)
+         Output: description
+         Filter: (transaction_records.description ~~* '%eur%'::text)
+         Rows Removed by Filter: 105825
+         Buffers: shared hit=7 read=2649
+ Planning:
+   Buffers: shared hit=1
+ Planning Time: 0.420 ms
+ Execution Time: 79.429 ms
+(12 rows)</code></pre>
+<p>Copy</p>
+<h3><mark class="marker-yellow">Skip first 10000 transactions and get me next 1000 records. - Number of parallel gather workers = 2</mark></h3>
+<pre><code class="language-plaintext">SELECT description
+FROM bank.transaction_records
+WHERE description ILIKE '%eur%' OFFSET 10000 LIMIT 1000;
+
+
+                                                                                 QUERY PLAN
+-------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+ Limit  (cost=26618.23..29005.71 rows=1000 width=60) (actual time=115.308..121.757 rows=1000 loops=1)
+   Output: description
+   Buffers: shared hit=7983
+   -&gt;  Gather  (cost=2743.45..451111.93 rows=187800 width=60) (actual time=72.034..121.471 rows=11000 loops=1)
+         Output: description
+         Workers Planned: 2
+         Workers Launched: 2
+         Buffers: shared hit=7983
+         -&gt;  Parallel Bitmap Heap Scan on bank.transaction_records  (cost=1743.45..431331.93 rows=78250 width=60) (actual time=63.862..109.811 rows=3667 loops=3)
+               Output: description
+               Recheck Cond: (transaction_records.description ~~* '%eur%'::text)
+               Rows Removed by Index Recheck: 102510
+               Heap Blocks: lossy=2768
+               Buffers: shared hit=7983
+               Worker 0:  actual time=60.130..106.272 rows=3609 loops=1
+                 Buffers: shared hit=2607
+               Worker 1:  actual time=59.744..105.860 rows=3537 loops=1
+                 Buffers: shared hit=2527
+               -&gt;  Bitmap Index Scan on transaction_records_description_trigram_idx  (cost=0.00..1696.50 rows=187800 width=0) (actual time=66.144..66.144 rows=344056 loops=1)
+                     Index Cond: (transaction_records.description ~~* '%eur%'::text)
+                     Buffers: shared hit=81
+ Planning:
+   Buffers: shared hit=1
+ Planning Time: 0.275 ms
+ Execution Time: 121.823 ms
+(25 rows)</code></pre>
+<p>Copy</p>
+<p><code>The execution time increases as we skip 29,000 records</code>. Below it the execution time seems to remain under 300 milliseconds.</p>
+<p><code>With number of parallel workers set to 4, the execution time remained under 400 milliseconds</code>.</p>
+<p><strong>NOTE: </strong>The domain space on which a search is targeted, the execution time for search tends to reduce the execution time.</p>
+<h2>Another index to create is on field - <code>sl_no</code> to handle updates on highlights or any other fields.</h2>
+<p><code>CREATE INDEX sl_no_idx ON bank.transaction_records USING BTREE(sl_no);</code></p>
+<p>&nbsp;</p>
+<pre><code class="language-plaintext">UPDATE bank.transaction_records SET highlight='true' where sl_no IN(4146335,4146348,4146357,4146364,
+4146371,4146377,4146389,4146397,4146404,4146410,4146417,4146427,4146432,4146441,4146445,4146455,4146464,4146472,4146490,4146494);
+
+-----------------------------------------------------------------------------------------------------------------
+Update on bank.transaction_records  (cost=0.44..8.46 rows=1 width=167) (actual time=1.052..1.053 rows=0 loops=1)
+   Buffers: shared hit=5 dirtied=1
+   -&gt;  Index Scan using sl_no_idx on bank.transaction_records  (cost=0.44..8.46 rows=1 width=167) (actual time=0.233..0.234 rows=1 loops=1)
+         Output: id, account_no, transaction_date, chq_no, true, sl_no, is_debit, debit_amt, credit_amt, description, category, ctid
+         Index Cond: (transaction_records.sl_no = 12237642)
+         Buffers: shared hit=4
+ Planning:
+   Buffers: shared hit=154
+ Planning Time: 23.070 msP
+ Execution Time: 43 ms
+(10 rows)</code></pre>
+<p>Copy</p>
+<h1>Using low-code to create functional UI - To check performance</h1>
+<p>It is also important to understand how the UI handles the data and the user experience it provides when there is a search functionality involved. So I went ahead and used a open source <code>low-code</code> platform. The UI is shown below:</p>
+<figure class="image"><img src="https://wiki.breaksignal.com/low-code-postgres-benchmark-poc.png"></figure>
+<p>&nbsp;</p>
+<p><strong>Note: </strong>All entities (Database, UI, OpenSearch) are hosted and accessed locally. Hence in this POC I am ignoring the network latency/delay.</p>
+<h2 style="text-align:center;">Metrics</h2>
+<figure class="table">
+  <table style="background-color:rgb(255, 255, 255);border-bottom:solid;border-left:solid;border-right:solid;border-top:solid;">
+    <tbody>
+      <tr>
+        <td style="border-bottom:1px solid rgb(207, 216, 220);border-left:1px solid rgb(207, 216, 220);border-right:1px solid rgb(207, 216, 220);border-top:1px solid rgb(207, 216, 220);padding:0.5rem 0.75rem;">
+          <p style="text-align:center;"><strong>Metrics</strong></p>
+        </td>
+        <td style="background-color:rgb(250, 250, 250);border-bottom:1px solid rgb(207, 216, 220);border-left:1px solid rgb(207, 216, 220);border-right:1px solid rgb(207, 216, 220);border-top:1px solid rgb(207, 216, 220);padding:0.5rem 0.75rem;">
+          <p style="text-align:center;"><strong>Time Taken&nbsp;</strong></p>
+        </td>
+        <td style="border-bottom:1px solid rgb(207, 216, 220);border-left:1px solid rgb(207, 216, 220);border-right:1px solid rgb(207, 216, 220);border-top:1px solid rgb(207, 216, 220);padding:0.5rem 0.75rem;">
+          <p style="text-align:center;"><strong>Description</strong></p>
+        </td>
+      </tr>
+      <tr>
+        <td style="background-color:rgb(250, 250, 250);border-bottom:1px solid rgb(207, 216, 220);border-left:1px solid rgb(207, 216, 220);border-right:1px solid rgb(207, 216, 220);border-top:1px solid rgb(207, 216, 220);padding:0.5rem 0.75rem;">Retrieval of autocomplete / recommended text<br>from OpenSearch and render it on UI.</td>
+        <td style="background-color:rgb(245, 245, 245);border-bottom:1px solid rgb(207, 216, 220);border-left:1px solid rgb(207, 216, 220);border-right:1px solid rgb(207, 216, 220);border-top:1px solid rgb(207, 216, 220);padding:0.5rem 0.75rem;">~ 300 ms</td>
+        <td style="background-color:rgb(250, 250, 250);border-bottom:1px solid rgb(207, 216, 220);border-left:1px solid rgb(207, 216, 220);border-right:1px solid rgb(207, 216, 220);border-top:1px solid rgb(207, 216, 220);padding:0.5rem 0.75rem;">We used OpenSearch's autocomplete functionality to get the suggested / autocompleted n-gram possible text. Overall OpenSearch node had 3,00,000+ records. Each query was completed in less than 300 milliseconds.</td>
+      </tr>
+      <tr>
+        <td style="border-bottom:1px solid rgb(207, 216, 220);border-left:1px solid rgb(207, 216, 220);border-right:1px solid rgb(207, 216, 220);border-top:1px solid rgb(207, 216, 220);padding:0.5rem 0.75rem;">Fresh search of a text and render it on UI table with pagination.</td>
+        <td style="background-color:rgb(250, 250, 250);border-bottom:1px solid rgb(207, 216, 220);border-left:1px solid rgb(207, 216, 220);border-right:1px solid rgb(207, 216, 220);border-top:1px solid rgb(207, 216, 220);padding:0.5rem 0.75rem;">~ 900 ms</td>
+        <td style="border-bottom:1px solid rgb(207, 216, 220);border-left:1px solid rgb(207, 216, 220);border-right:1px solid rgb(207, 216, 220);border-top:1px solid rgb(207, 216, 220);padding:0.5rem 0.75rem;">When a text is entered in search bar and the button is pressed to search, a query is sent to backend to retrieve all data with <code>ILIKE</code> match.</td>
+      </tr>
+      <tr>
+        <td style="background-color:rgb(250, 250, 250);border-bottom:1px solid rgb(207, 216, 220);border-left:1px solid rgb(207, 216, 220);border-right:1px solid rgb(207, 216, 220);border-top:1px solid rgb(207, 216, 220);padding:0.5rem 0.75rem;">Time to paginate (individual) after the initial data is retrieved.</td>
+        <td style="background-color:rgb(245, 245, 245);border-bottom:1px solid rgb(207, 216, 220);border-left:1px solid rgb(207, 216, 220);border-right:1px solid rgb(207, 216, 220);border-top:1px solid rgb(207, 216, 220);padding:0.5rem 0.75rem;">~ 300<br>&nbsp;ms</td>
+        <td style="background-color:rgb(250, 250, 250);border-bottom:1px solid rgb(207, 216, 220);border-left:1px solid rgb(207, 216, 220);border-right:1px solid rgb(207, 216, 220);border-top:1px solid rgb(207, 216, 220);padding:0.5rem 0.75rem;">It is taking less than 300 ms to paginate the results and render on UI.</td>
+      </tr>
+      <tr>
+        <td style="border-bottom:1px solid rgb(207, 216, 220);border-left:1px solid rgb(207, 216, 220);border-right:1px solid rgb(207, 216, 220);border-top:1px solid rgb(207, 216, 220);padding:0.5rem 0.75rem;">Fuzziness Search</td>
+        <td style="background-color:rgb(250, 250, 250);border-bottom:1px solid rgb(207, 216, 220);border-left:1px solid rgb(207, 216, 220);border-right:1px solid rgb(207, 216, 220);border-top:1px solid rgb(207, 216, 220);padding:0.5rem 0.75rem;">~ 300 ms</td>
+        <td style="border-bottom:1px solid rgb(207, 216, 220);border-left:1px solid rgb(207, 216, 220);border-right:1px solid rgb(207, 216, 220);border-top:1px solid rgb(207, 216, 220);padding:0.5rem 0.75rem;">Fuzziness is also added to search. Once the user enters any incorrect spelled word nearest fuzzy matched words are auto suggested to the user. The edit distance of fuzziness is auto calculated by OpenSearch. If any modifications with the current search is required, then we can add more customisations.<br><br>Note: The fuzziness results displayed in this mock UI is to give the searcher the idea of what he is searching and relevant results wrt to the keywords that he has entered. In next POC we will figure out a way to efficiently tokenise the entered keywords and give it to postgres to search.</td>
+      </tr>
+    </tbody>
+  </table>
+</figure>
+<p>&nbsp;</p>
+<p>Overall the experience of search was good (what I expected of searching something out of huge number of records). So, the <code>Trigrams</code> approach seems to work.</p>
+<h1>Benchmarking - The range filter was defaulted</h1>
+<pre><code class="language-plaintext">Desc1: Fee) - Desc2:  LIEN - category: createFinance - Response time: 0.8341240882873535 with response size: 0 and status_code: 200
+Desc1: Financial - Desc2:  MARGIN - category: bureauPull - Response time: 0.7632200717926025 with response size: 2 and status_code: 200
+Desc1: Ratio - Desc2:  PROSPECTUS - category: bureauPull - Response time: 0.9750120639801025 with response size: 10 and status_code: 200
+Desc1: (CV) - Desc2:  INTEREST - category: GstinConsentLink - Response time: 0.8013160228729248 with response size: 1 and status_code: 200
+Desc1: Conflict - Desc2:  ANNUITY - category: sendCLPScheduleLetter - Response time: 0.28148913383483887 with response size: 1 and status_code: 200
+Desc1: of - Desc2:  RISK - category: appFormSave - Response time: 5.500224828720093 with response size: 22 and status_code: 200
+Desc1: Bond - Desc2:  TERM - category: groupApprovalForPending - Response time: 0.5422849655151367 with response size: 17 and status_code: 200
+Desc1: (AFR) - Desc2:  FOREIGN EXCHANGE - category: sendLoanAgreement - Response time: 0.5310039520263672 with response size: 1 and status_code: 200
+Desc1: Hathaway - Desc2:  FUNDS - category: RejectRepayment - Response time: 0.22664308547973633 with response size: 0 and status_code: 200
+Desc1: Earnings - Desc2:  FIDUCIARY - category: updateLoanDetails - Response time: 0.29802703857421875 with response size: 4 and status_code: 200
+Desc1: Definition - Desc2: SERVICE CHARGE - category: appFormEntityMatching - Response time: 0.5751962661743164 with response size: 1 and status_code: 200
+Desc1: (EAC) - Desc2:  AUTOMATED TELLER MACHINE (ATM) - category: updateLoanDetails - Response time: 0.4712231159210205 with response size: 1 and status_code: 200
+Desc1: With - Desc2:  DISCOUNT RATE - category: virtualAccountCreation - Response time: 0.4379410743713379 with response size: 0 and status_code: 200
+Desc1: Paid - Desc2:  REPOSSESSION - category: groupAmountRecalculate - Response time: 0.1974022388458252 with response size: 1 and status_code: 200
+Desc1: Accounting - Desc2:  FEDERAL DEPOSIT INSURANCE CORPORATION (FDIC) - category: withdrawalInstruction - Response time: 1.1938531398773193 with response size: 2 and status_code: 200
+Desc1: Return - Desc2:  DISCOUNT RATE - category: generateCLPScheduleLetter - Response time: 0.23928284645080566 with response size: 1 and status_code: 200
+Desc1: General - Desc2: FD INTEREST - category: appFormEntityMatching - Response time: 0.8484628200531006 with response size: 3 and status_code: 200
+Desc1: (FICA) - Desc2:  COLLATERAL - category: appFormStatusUpdate - Response time: 0.9916658401489258 with response size: 0 and status_code: 200
+Desc1: Economic - Desc2: SMS ALERT CHARGE - category: groupApproved - Response time: 0.5275177955627441 with response size: 1 and status_code: 200
+Desc1: Exchange-Traded - Desc2:  FOREIGN EXCHANGE - category: appFormStatusUpdate - Response time: 0.2814311981201172 with response size: 0 and status_code: 200
+Desc1: terms - Desc2: NEFT TRANSFER - category: fraudCheck - Response time: 0.2422189712524414 with response size: 4 and status_code: 200
+Desc1: Treasury - Desc2:  MARKET - category: uploadExternalBureau - Response time: 0.3987157344818115 with response size: 3 and status_code: 200
+Desc1: Share - Desc2:  FEDERAL DEPOSIT INSURANCE CORPORATION (FDIC) - category: appFormStatus - Response time: 0.32690978050231934 with response size: 0 and status_code: 200
+Desc1: C - Desc2:  FINANCE - category: checkForBureauPull - Response time: 4.847761869430542 with response size: 448 and status_code: 200
+Desc1: 51% - Desc2:  BALANCE - category: appFormSave - Response time: 5.148753881454468 with response size: 50 and status_code: 200
+Desc1: Fixed - Desc2:  MARGIN - category: skipPullAndParseBureau - Response time: 0.2740499973297119 with response size: 2 and status_code: 200
+Desc1: (EPA) - Desc2: ATM WITHDRAWAL - category: bureauPull - Response time: 0.22954797744750977 with response size: 2 and status_code: 200
+Desc1: Testing - Desc2:  DEBT - category: groupApproved - Response time: 0.23038792610168457 with response size: 1 and status_code: 200
+Desc1: Good - Desc2:  QUOTE - category: validateDocsPresent - Response time: 0.12750792503356934 with response size: 6 and status_code: 200
+Desc1: Index - Desc2: CHEQUE DEPOSIT - category: groupAmountRecalculate - Response time: 0.7269301414489746 with response size: 2 and status_code: 200
+Desc1: of - Desc2:  CHECK - category: appFormStatusUpdate - Response time: 4.779253959655762 with response size: 10 and status_code: 200
+Desc1: and - Desc2:  TRADE - category: bureauPull - Response time: 1.8259990215301514 with response size: 45 and status_code: 200
+Desc1: Equity - Desc2:  FINANCE - category: RejectRepayment - Response time: 0.27729368209838867 with response size: 4 and status_code: 200
+Desc1: Scorecard - Desc2:  EARNINGS - category: createOrUpdateCustomer - Response time: 0.17746496200561523 with response size: 0 and status_code: 200
+Desc1: Profit - Desc2:  YIELD - category: groupApprovalForPending - Response time: 0.10060572624206543 with response size: 0 and status_code: 200
+Desc1: Per - Desc2:  EARNINGS - category: updateLoanStartDate - Response time: 0.07949614524841309 with response size: 4 and status_code: 200
+Desc1: High/Low - Desc2: NEFT TRANSFER - category: appFormStatusUpdate - Response time: 0.20550107955932617 with response size: 0 and status_code: 200
+Desc1: (HMOs) - Desc2:  ADJUSTABLE RATE - category: createFinance - Response time: 0.45916223526000977 with response size: 0 and status_code: 200
+Desc1: complete - Desc2:  CERTIFICATE OF DEPOSIT (CD) - category: blackBoxInvoker - Response time: 0.7781782150268555 with response size: 1 and status_code: 200
+Desc1: (D/E) - Desc2:  INVESTMENT - category: appFormEntityMatching - Response time: 0.3498539924621582 with response size: 1 and status_code: 200</code></pre>
+<p>Copy</p>
+<h1>Few best practices to follow from above observation</h1>
+<ol>
+  <li>Fix the minimum number of characters to search to <code>3</code> as we are utilising Postgres <code>Trigram</code> index approach.</li>
+  <li>Avoid searching with special characters if the overall length of the word that is being searched including special character is ≤ <code>3</code></li>
+</ol>
