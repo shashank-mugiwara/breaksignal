@@ -2,7 +2,7 @@
 title: OS-Multiplexing
 description: Understanding Underlying OS Multiplexing
 published: true
-date: 2023-06-24T15:06:09.393Z
+date: 2023-06-24T15:08:35.308Z
 tags: os, operating system, multipexing, fastservers, linux
 editor: markdown
 dateCreated: 2023-06-24T15:06:09.393Z
@@ -16,15 +16,66 @@ In the world of operating systems, efficient handling of I/O operations is cruci
 ## OS Multiplexing: Enhancing I/O Performance
 When an application needs to handle multiple I/O operations simultaneously, traditional approaches such as blocking I/O or non-blocking I/O can become inefficient. OS multiplexing techniques offer a more efficient solution by enabling a single thread to manage multiple I/O operations concurrently without blocking.
 
-### Introducing `poll`
+```log
+         +------------------------+
+         |   I/O Operations       |
+         +------------------------+
+         |    Read from file      |
+         |    Write to socket     |
+         |    Receive network     |
+         |    data                |
+         |    ...                 |
+         +------------------------+
+                       |
+                       | (1)
+                       |
+         +----------------------------------+
+         |       Multiplexer                |
+         +----------------------------------+
+         |                                  |
+         |     Monitors multiple I/O        |
+         |     operations concurrently     |
+         |     and efficiently              |
+         |                                  |
+         |     - Uses mechanisms like       |
+         |       poll, epoll, or kqueue     |
+         |                                  |
+         |     - Checks for I/O events      |
+         |       (data availability,        |
+         |       connection status changes, |
+         |       errors, etc.)              |
+         +----------------------------------+
+                       |
+                       | (2)
+                       |
+         +------------------------------------+
+         |      Operating System               |
+         +------------------------------------+
+         |                                    |
+         |    Manages and coordinates          |
+         |    the I/O operations              |
+         |                                    |
+         |    - Schedules tasks efficiently   |
+         |      to maximize performance       |
+         |                                    |
+         |    - Provides necessary            |
+         |      abstractions and interfaces   |
+         |      for multiplexing              |
+         |                                    |
+         |    - Handles system-level tasks    |
+         |      related to I/O operations     |
+         +------------------------------------+
+```
+
+### `poll`
 `poll` is an OS multiplexing mechanism that allows applications to monitor multiple file descriptors for various events, such as data availability, connection status changes, or errors. It operates by blocking the calling thread until any of the specified events occur on the monitored file descriptors. Once an event is detected, `poll` returns and provides information about the file descriptor(s) that triggered the event.
 
-### The Power of `epoll`
+### `epoll`
 `epoll` is an advanced OS multiplexing mechanism, primarily used in Linux-based systems. It offers improved performance over `poll` by utilizing a more scalable and efficient event notification model. With `epoll`, developers can monitor a large number of file descriptors efficiently, even in highly concurrent environments.
 
 One of the key features of `epoll` is its support for both edge-triggered and level-triggered event notifications. In edge-triggered mode, an event is triggered only when there is a transition from no events to an event state, providing more granular control. On the other hand, level-triggered mode triggers an event as long as the corresponding condition is true, making it suitable for certain scenarios.
 
-### Introducing `kqueue`
+### `kqueue`
 `kqueue` is an OS multiplexing mechanism primarily used in FreeBSD and macOS systems. It provides similar functionality to `epoll` but with a different interface and implementation. With `kqueue`, developers can efficiently monitor file descriptors, sockets, timers, and signals for events.
 
 `kqueue` is designed to handle a large number of file descriptors efficiently, making it suitable for high-performance networking applications. It supports various event filters, including data readiness, connection status changes, file modifications, and more. Additionally, `kqueue` offers a scalable and efficient way to manage timers and signals, enhancing the overall responsiveness of the system.
