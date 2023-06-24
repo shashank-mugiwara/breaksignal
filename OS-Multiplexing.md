@@ -2,7 +2,7 @@
 title: OS-Multiplexing
 description: Understanding Underlying OS Multiplexing
 published: true
-date: 2023-06-24T16:01:47.017Z
+date: 2023-06-24T17:47:08.610Z
 tags: os, operating system, multipexing, fastservers, linux
 editor: markdown
 dateCreated: 2023-06-24T15:06:09.393Z
@@ -17,7 +17,7 @@ In the world of operating systems, efficient handling of I/O operations is cruci
 When an application needs to handle multiple I/O operations simultaneously, traditional approaches such as blocking I/O or non-blocking I/O can become inefficient. OS multiplexing techniques offer a more efficient solution by enabling a single thread to manage multiple I/O operations concurrently without blocking.
 
 ```log
-         +------------------------+
+ 				 +------------------------+
          |   I/O Operations       |
          +------------------------+
          |    Read from file      |
