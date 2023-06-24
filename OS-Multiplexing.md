@@ -2,7 +2,7 @@
 title: OS-Multiplexing
 description: Understanding Underlying OS Multiplexing
 published: true
-date: 2023-06-24T17:47:08.610Z
+date: 2023-06-24T17:48:21.468Z
 tags: os, operating system, multipexing, fastservers, linux
 editor: markdown
 dateCreated: 2023-06-24T15:06:09.393Z
@@ -17,54 +17,44 @@ In the world of operating systems, efficient handling of I/O operations is cruci
 When an application needs to handle multiple I/O operations simultaneously, traditional approaches such as blocking I/O or non-blocking I/O can become inefficient. OS multiplexing techniques offer a more efficient solution by enabling a single thread to manage multiple I/O operations concurrently without blocking.
 
 ```log
- 				 +------------------------+
-         |   I/O Operations       |
-         +------------------------+
-         |    Read from file      |
-         |    Write to socket     |
-         |    Receive network     |
-         |    data                |
-         |    ...                 |
-         +------------------------+
-                       |
-                       | (1)
-                       |
-         +----------------------------------+
-         |       Multiplexer                |
-         +----------------------------------+
-         |                                  |
-         |     Monitors multiple I/O        |
-         |     operations concurrently     |
-         |     and efficiently              |
-         |                                  |
-         |     - Uses mechanisms like       |
-         |       poll, epoll, or kqueue     |
-         |                                  |
-         |     - Checks for I/O events      |
-         |       (data availability,        |
-         |       connection status changes, |
-         |       errors, etc.)              |
-         +----------------------------------+
-                       |
-                       | (2)
-                       |
-         +------------------------------------+
-         |      Operating System               |
-         +------------------------------------+
-         |                                    |
-         |    Manages and coordinates          |
-         |    the I/O operations              |
-         |                                    |
-         |    - Schedules tasks efficiently   |
-         |      to maximize performance       |
-         |                                    |
-         |    - Provides necessary            |
-         |      abstractions and interfaces   |
-         |      for multiplexing              |
-         |                                    |
-         |    - Handles system-level tasks    |
-         |      related to I/O operations     |
-         +------------------------------------+
+ 				
+        +------------------------+  (1)  +------------------------------------+
+|   I/O Operations       | ----> |      Multiplexer                     |
++------------------------+       +------------------------------------+
+|    Read from file      |       |                                    |
+|    Write to socket     |       |     Monitors multiple I/O           |
+|    Receive network     |       |     operations concurrently        |
+|    data                |       |     and efficiently                 |
+|    ...                 |       |                                    |
++------------------------+       |     - Uses mechanisms like          |
+                                 |       poll, epoll, or kqueue        |
+                                 |                                    |
+                                 |     - Checks for I/O events         |
+                                 |       (data availability,           |
+                                 |       connection status changes,    |
+                                 |       errors, etc.)                 |
+                                 +------------------------------------+
+                                                   |
+                                                   | (2)
+                                                   |
+                                 +------------------------------------+
+                                 |      Operating System               |
+                                 +------------------------------------+
+                                 |                                    |
+                                 |    Manages and coordinates          |
+                                 |    the I/O operations              |
+                                 |                                    |
+                                 |    - Schedules tasks efficiently   |
+                                 |      to maximize performance       |
+                                 |                                    |
+                                 |    - Provides necessary            |
+                                 |      abstractions and interfaces   |
+                                 |      for multiplexing              |
+                                 |                                    |
+                                 |    - Handles system-level tasks    |
+                                 |      related to I/O operations     |
+                                 +------------------------------------+
+
 ```
 
 ### `poll`
