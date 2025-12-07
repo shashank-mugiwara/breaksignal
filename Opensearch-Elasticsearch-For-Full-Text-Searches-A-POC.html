@@ -1,9 +1,9 @@
 <!--
-title: Using Opensearch or Elasticsearch for full-text searches - A POC
-description: 
+title: Using OpenSearch or Elasticsearch for Full-Text Searches - A POC
+description: A comprehensive proof of concept for implementing full-text search using OpenSearch or Elasticsearch for bank statement analysis. Includes benchmarking results, cluster configuration, and performance metrics.
 published: true
 date: 2023-06-24T09:04:56.995Z
-tags: full-text search, opensearch, elasticsearch, wildcard
+tags: full-text search, opensearch, elasticsearch, wildcard, benchmarking, database performance, search optimization, bank statements
 editor: ckeditor
 dateCreated: 2023-06-24T09:04:54.711Z
 -->
@@ -119,17 +119,17 @@ dateCreated: 2023-06-24T09:04:54.711Z
   <li><code>transaction_amount (double)</code> - Transaction amount.</li>
   <li><code>category (keyword)</code> - Category of the transaction.</li>
 </ol>
-<h1>A note on the use case</h1>
-<p>The user should be able to do full text searches on description field. Consider the example records below:</p>
+<h1>A Note on the Use Case</h1>
+<p>The user should be able to perform full-text searches on the description field. Consider the example records below:</p>
 <pre><code class="language-plaintext">"description_term": "TDS DEDUCTED Yukta Wahal Debt 36108473986#",
 "description_term": "TDS DEDUCTED Yukta Upadhyay Social, 82225554583#",
 "description_term": "TDS DEDUCTED Yukta Upadhyay Rate 85373069044#",
 "description_term": "TDS DEDUCTED Yukta Tiwari (CFA) 15646092048#",
 "description_term": "TDS DEDUCTED Yukta Holkar Cost 39464312918#",</code></pre>
 <p>Copy</p>
-<p>If a user searches for text like <code>TDS</code> and <code>ukta</code> all the above 5 entries should be showed up. Fuzziness is not yet a part of our search, so we are skipping that.</p>
-<h1>Preparing the data</h1>
-<p>We will be generating data that is similar to what an actual transaction description looks. Below is a sample document of data generated.</p>
+<p>If a user searches for text like <code>TDS</code> and <code>ukta</code>, all the above 5 entries should be displayed. Fuzziness is not yet part of our search implementation, so we are skipping that for now.</p>
+<h1>Preparing the Data</h1>
+<p>We will be generating data that is similar to what an actual transaction description looks like. Below is a sample document of the generated data.</p>
 <pre><code class="language-plaintext">{
   "account_id": "37503487134",
   "description_term": "TDS DEDUCTED Yukta Gaur Bankruptcy 54636237417#",
@@ -181,13 +181,13 @@ def index_document():
     }
     return document, id</code></pre>
 <p>Copy</p>
-<h1>Testing plan</h1>
-<p>Since an app-form has multiple accounts under it and each account can have an average of 100000 records, we can go with assumption each account having a total of 700000 records for our testing. We will also create few indexes on the same cluster which have high number of documents to see how other indexes affect cluster performance. So overall these are the cases under which we will test the feasibility and performance of elastic search:</p>
+<h1>Testing Plan</h1>
+<p>Since an app-form has multiple accounts under it and each account can have an average of 100,000 records, we will assume each account has a total of 700,000 records for our testing. We will also create a few indexes on the same cluster with a high number of documents to see how other indexes affect cluster performance. Overall, these are the cases under which we will test the feasibility and performance of Elasticsearch:</p>
 <ol>
-  <li>We create an index for every app-form and and add 900000 documents. There will be a 100000 documents associated with each account.</li>
-  <li>We create a index say <code>other</code> with high number of documents say - one billion.</li>
+  <li>We create an index for every app-form and add 900,000 documents. There will be 100,000 documents associated with each account.</li>
+  <li>We create an index called <code>other</code> with a high number of documents - one billion.</li>
 </ol>
-<p>Since we are targeting to support <code>full-text</code> searches, using <code>wildcard</code> queries will fit in to our use case. But wildcard queries are costly and we need to check the performance of these queries on the above defined cases. We will also try using <code>n-grams</code> or <code>knn</code> search to see if they can optimise and fit into the solution that we are looking for.</p>
+<p>Since we are targeting support for <code>full-text</code> searches, using <code>wildcard</code> queries will fit our use case. However, wildcard queries are costly, and we need to check the performance of these queries on the cases defined above. We will also try using <code>n-grams</code> or <code>knn</code> search to see if they can optimize and fit into the solution we are looking for.</p>
 <p><code>AppFormIds List - appforms.csv sample</code></p>
 <pre><code class="language-plaintext">appFormId
 3040c75d-7003-4d6b-b00a-68e73437d702,
@@ -364,8 +364,8 @@ green open 094d6f38-767a-4007-84e3-9a62b4a505e2 PnC3oynTSIO-SqDhxpkA8w 5 1 90000
     </tbody>
   </table>
 </figure>
-<h1>Observation</h1>
-<p>As data grows, it is beneficial to add more nodes as the data under an index in our use case is distributed across shards. The below is how an index is split across multiple shards (55~56 shards in our case). Some indexes were removed here for brevity. &nbsp;So if we go with the above metrics,&nbsp;</p>
+<h1>Observations</h1>
+<p>As data grows, it is beneficial to add more nodes since the data under an index in our use case is distributed across shards. Below is how an index is split across multiple shards (55-56 shards in our case). Some indexes were removed here for brevity. Based on the above metrics:</p>
 <pre><code class="language-plaintext">index                                shard prirep state     docs  store ip            node
 2862c1b7-24b0-4fbc-b6bf-cda9ca413ab2 2     r      STARTED 180078 39.4mb x.x.x.x 1ae11744b7d470c7b73a32b20af4833d
 2862c1b7-24b0-4fbc-b6bf-cda9ca413ab2 2     p      STARTED 180078 39.4mb x.x.x.x 66f2a1be95ed117c009e7c888bf82233
@@ -401,10 +401,10 @@ aa2c2031-8196-46f3-a065-2c607560102e 0     r      STARTED 179886 39.5mb x.x.x.x 
 <p>&nbsp;</p>
 <h1>Conclusion</h1>
 <ol>
-  <li>Since we are going to extensively use <code>wildcard</code> queries for searching <code>description/narration</code> , the use of wildcards are very expensive. Consider the below screenshot pointed out in elastic docs.<br>&nbsp;</li>
+  <li>Since we are going to extensively use <code>wildcard</code> queries for searching <code>description/narration</code>, the use of wildcards is very expensive. Consider the screenshot below from the Elasticsearch documentation:<br>&nbsp;</li>
 </ol>
 <figure class="image"><img src="https://wiki.breaksignal.com/screenshot_2023-03-21_at_10.55.25_am.png"></figure>
-<p>Since OpenSearch is a fork of elasticsearch and the handling features of <code>wildcard</code> and <code>range</code> is exactly same.</p>
-<p>2. If we really want to use OpenSearch, then we will be using it as a Database but not as a search engine (which is its primary) use case.</p>
-<p>3. Even with the introduction of trigrams (n-gram with n=3) there was very minimal difference in performance.</p>
-<p>4. The performance did not improve if the size of data is fixed and the number of nodes were increased.</p>
+<p>Since OpenSearch is a fork of Elasticsearch, the handling features of <code>wildcard</code> and <code>range</code> are exactly the same.</p>
+<p>2. If we really want to use OpenSearch, we will be using it as a database rather than as a search engine (which is its primary use case).</p>
+<p>3. Even with the introduction of trigrams (n-gram with n=3), there was very minimal difference in performance.</p>
+<p>4. Performance did not improve when the data size was fixed and the number of nodes were increased.</p>

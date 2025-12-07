@@ -1,17 +1,17 @@
 <!--
-title: Scalable and Efficient Full-Text Searches in Postgres
-description: 
+title: Scalable and Efficient Full-Text Searches in PostgreSQL Using Trigram Indexes
+description: Learn how to implement scalable full-text search in PostgreSQL for bank statement analysis using trigram indexes and GIN. Includes performance benchmarks, query optimization, and best practices for handling millions of records.
 published: true
 date: 2023-06-24T08:58:49.073Z
-tags: postgres, database, trigram, indexes, full-text search
+tags: postgres, postgresql, database, trigram, indexes, full-text search, GIN index, performance optimization, query performance
 editor: ckeditor
 dateCreated: 2023-06-24T08:57:58.645Z
 -->
 
 <h1 style="text-align:center;">Scalable Full-Text Searches - Bank Statement Analysis - POC on PostgreSQL - 001</h1>
 <p>Total number of records in table <code>transaction<i>records</i></code><i> = 2,09,73,479 (Two crore, 9 Lakh +)</i></p>
-<h2>Problem Statement:&nbsp;</h2>
-<p>Given a huge number of records of a schema given below, find an efficient and fast way to get pattern matching records. &nbsp;Below is the schema of <code>transaction_records</code> table.</p>
+<h2>Problem Statement</h2>
+<p>Given a huge number of records with the schema provided below, find an efficient and fast way to retrieve pattern-matching records. Below is the schema of the <code>transaction_records</code> table.</p>
 <pre><code class="language-plaintext">CREATE TABLE IF NOT EXISTS bank.transaction_records
 (
     id character varying NOT NULL,
@@ -35,8 +35,8 @@ OR
 
 SELECT COUNT(*) from bank.transaction_records WHERE description LIKE '%NEFT%';</code></pre>
 <p>Copy</p>
-<h1>The data - generating distinct description every time</h1>
-<p>We will use the below script to populate large data in postgres. The main motive of this data is to match text, so populating distinct description for every record is essential, to understand how indexes perform with variety of data. Hence there can be some variations wrt to column names in above schema. We shall use <code>essential_generators</code> python package to generate random statements every time.</p>
+<h1>The Data - Generating Distinct Descriptions Every Time</h1>
+<p>We will use the script below to populate large amounts of data in PostgreSQL. The main objective of this data is to match text, so populating a distinct description for every record is essential to understand how indexes perform with a variety of data. Therefore, there may be some variations with respect to column names in the above schema. We shall use the <code>essential_generators</code> Python package to generate random statements every time.</p>
 <pre><code class="language-python">import uuid
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from essential_generators import DocumentGenerator
@@ -155,13 +155,13 @@ if __name__ == '__main__':
         print("future: {}, result {} ".format(future, future.result()))</code></pre>
 <p>Copy</p>
 <p>&nbsp;</p>
-<h1>POC - Without using any Indexes</h1>
-<p>Query ran without use of any indexed data.<br>Note: <code>max_worker_processess = 8</code></p>
+<h1>POC - Without Using Any Indexes</h1>
+<p>Query ran without the use of any indexed data.<br>Note: <code>max_worker_processes = 8</code></p>
 <pre><code class="language-plaintext">SELECT COUNT(*) FROM bank.transaction_records WHERE description LIKE '%NEFT%'; ~ 14 seconds = 16,49,860 records
 
 SELECT * FROM bank.transaction_records WHERE description ILIKE '%NEFT%'; ~ 12 seconds</code></pre>
 <p>Copy</p>
-<p>Use of other data types was also tried including <code>character varying</code>, <code>text</code>, and <code>char</code>. It made no difference as the underlying datatype is based on Postgres's <code>varlena</code>. The below text is taken from official Postgres documentation.</p>
+<p>Use of other data types was also tried, including <code>character varying</code>, <code>text</code>, and <code>char</code>. It made no difference as the underlying datatype is based on PostgreSQL's <code>varlena</code>. The text below is taken from the official PostgreSQL documentation.</p>
 <pre><code class="language-plaintext">There is no performance difference among these three types,
 apart from increased storage space when using the blank-padded
 type and a few extra CPU cycles to check the length when storing into a
@@ -171,10 +171,10 @@ In fact, character(n) it is usually the slowest of the three because of
 its additional storage costs. In most situations text or character varying should be used instead.</code></pre>
 <p>Copy</p>
 <p>&nbsp;</p>
-<h1>The actual problem of full text searches</h1>
-<p>Consider a string <code>shashank</code> an and here we need to search for a string <code>nk</code>. The only solution is to iterate all values in subsets and check if any subset contains <code>nk</code>. This is because the value can appear anywhere and search on index won't help as we'd still have to compare every value one by one with no way of reducing the set of rows to search through. This leads to slow query performance.</p>
-<p>Let us explore few basic search process that Postgres offers. To start with let's go with a full text search.</p>
-<p>To do a full text search in Postgres - consider the below command:</p>
+<h1>The Actual Problem of Full-Text Searches</h1>
+<p>Consider a string <code>shashank</code> and here we need to search for a substring <code>nk</code>. The only solution is to iterate all values in subsets and check if any subset contains <code>nk</code>. This is because the value can appear anywhere, and a search on an index won't help as we'd still have to compare every value one by one with no way of reducing the set of rows to search through. This leads to slow query performance.</p>
+<p>Let us explore a few basic search processes that PostgreSQL offers. To start with, let's go with a full-text search.</p>
+<p>To perform a full-text search in PostgreSQL, consider the command below:</p>
 <pre><code class="language-plaintext">SELECT *
 FROM bank.transactions
 WHERE to_tsvector('english', description) @@ to_tsquery('english', 'EMI');</code></pre>
@@ -212,8 +212,8 @@ WHERE to_tsvector('english', 'NEFT/DTF SRI RAMANANDA FINANCE EMI') @@ to_tsquery
 ---
 ---</code></pre>
 <p>Copy</p>
-<h1>The Postgres - Trigram Indexes</h1>
-<p><strong>Trigrams</strong> are a special case of the<code>n-gram</code> where n is 3. In the fields of computational linguistics and probability, an <i><strong>n</strong></i><strong>-gram</strong> (sometimes also called <strong>Q-gram</strong>) is a contiguous sequence of <i>n</i> items from a given sample of text or speech. Trigrams are basically words broken up into sequences of 3 letters. Consider word <code>shashank</code> the possible trigrams of this word will be:</p>
+<h1>PostgreSQL Trigram Indexes</h1>
+<p><strong>Trigrams</strong> are a special case of the <code>n-gram</code> where n is 3. In the fields of computational linguistics and probability, an <i><strong>n</strong></i><strong>-gram</strong> (sometimes also called <strong>Q-gram</strong>) is a contiguous sequence of <i>n</i> items from a given sample of text or speech. Trigrams are basically words broken up into sequences of 3 letters. Consider the word <code>shashank</code> - the possible trigrams of this word will be:</p>
 <pre><code class="language-plaintext">s h a
 h a s
 a s h
@@ -221,24 +221,24 @@ s h a
 h a n
 a n k</code></pre>
 <p>Copy</p>
-<p>Basically we need to generate all trigrams and store them into a vector and apply text matching on these and reverse find the indexes to fetch desired results. We can skill all these boilerplate code by using Postgres's inbuilt <code>pg_tram</code> extension. To demonstrate we shall use the below query:</p>
+<p>Basically, we need to generate all trigrams and store them into a vector, apply text matching on these, and reverse-find the indexes to fetch desired results. We can skip all this boilerplate code by using PostgreSQL's built-in <code>pg_trgm</code> extension. To demonstrate, we shall use the query below:</p>
 <pre><code class="language-plaintext">select show_trgm('NEFT/DTF SRI RAMANANDA FINANCE EMI');
 
                                   trgm's
 -----------------------------------------------------------------------------------------------------------------------------------------------------------------------------
 {"  d","  e","  f","  n","  r","  s"," dt"," em"," fi"," ne"," ra"," sr",ama,ana,anc,and,"ce ","da ",dtf,eft,emi,fin,"ft ",ina,man,"mi ",nan,nce,nda,nef,ram,"ri ",sri,"tf "}</code></pre>
 <p>Copy</p>
-<p>A big benefit of this extension is that these trigram indexes can be used by the LIKE and ILIKE conditions without having to change your queries or setting up complex full text search systems. As you see the gram size is not more than 3. Additionally we need to configure the inverted indexes on the desired text.&nbsp;</p>
-<p>To create GIN index (<strong>Generalised Inverted Index</strong>):</p>
+<p>A big benefit of this extension is that these trigram indexes can be used by the LIKE and ILIKE conditions without having to change your queries or set up complex full-text search systems. As you can see, the gram size is not more than 3. Additionally, we need to configure the inverted indexes on the desired text.</p>
+<p>To create a GIN index (<strong>Generalized Inverted Index</strong>):</p>
 <pre><code class="language-plaintext">CREATE INDEX CONCURRENTLY transaction_records_description_trigram_idx
 ON bank.transaction_records
 USING gin (description gin_trgm_ops);
 
 Query returned successfully in 7 min 45 secs.</code></pre>
 <p>Copy</p>
-<p>&nbsp;The use of <code>pattern_ops</code> strategy reduces the number of different operations that can be performed on indexes. The main reason for having operator classes is that for some data types, there could be more than one meaningful index behaviour. Reducing the number of behaviours available for a particular index, helps the postgres query planner to efficiently generate a plan, else the planner resorts to naive sequential scans.</p>
-<p>Let us now try to get the transaction records. Similarly we can also paginate with standard <code>LIMIT-OFFSET</code> approach.</p>
-<h3><mark class="marker-yellow">Get First 10000 transactions which have substring </mark><code><mark class="marker-yellow">eur</mark></code><mark class="marker-yellow"> in them.</mark></h3>
+<p>The use of the <code>pattern_ops</code> strategy reduces the number of different operations that can be performed on indexes. The main reason for having operator classes is that for some data types, there could be more than one meaningful index behavior. Reducing the number of behaviors available for a particular index helps the PostgreSQL query planner to efficiently generate a plan; otherwise, the planner resorts to naive sequential scans.</p>
+<p>Let us now try to retrieve the transaction records. Similarly, we can also paginate using the standard <code>LIMIT-OFFSET</code> approach.</p>
+<h3><mark class="marker-yellow">Get the first 10,000 transactions that contain the substring </mark><code><mark class="marker-yellow">eur</mark></code><mark class="marker-yellow">.</mark></h3>
 <pre><code class="language-plaintext">SELECT description
 FROM bank.transaction_records
 WHERE description ILIKE '%eur%' LIMIT 10000;
@@ -272,7 +272,7 @@ WHERE description ILIKE '%eur%' LIMIT 10000;
  Execution Time: 113.034 ms
  ===================================================================================================================================================================================</code></pre>
 <p>Copy</p>
-<h3><mark class="marker-yellow">Skip first 1000 transactions and get me next 1000 records - Number of parallel gather workers = 2</mark></h3>
+<h3><mark class="marker-yellow">Skip the first 1,000 transactions and get the next 1,000 records - Number of parallel gather workers = 2</mark></h3>
 <pre><code class="language-plaintext">SELECT description
 FROM bank.transaction_records
 WHERE description ILIKE '%eur%' OFFSET 1000 LIMIT 1000;
@@ -323,7 +323,7 @@ postgres=# EXPLAIN (analyze, verbose, timing, costs, buffers) SELECT description
  Execution Time: 79.429 ms
 (12 rows)</code></pre>
 <p>Copy</p>
-<h3><mark class="marker-yellow">Skip first 10000 transactions and get me next 1000 records. - Number of parallel gather workers = 2</mark></h3>
+<h3><mark class="marker-yellow">Skip the first 10,000 transactions and get the next 1,000 records - Number of parallel gather workers = 2</mark></h3>
 <pre><code class="language-plaintext">SELECT description
 FROM bank.transaction_records
 WHERE description ILIKE '%eur%' OFFSET 10000 LIMIT 1000;
@@ -358,10 +358,10 @@ WHERE description ILIKE '%eur%' OFFSET 10000 LIMIT 1000;
  Execution Time: 121.823 ms
 (25 rows)</code></pre>
 <p>Copy</p>
-<p><code>The execution time increases as we skip 29,000 records</code>. Below it the execution time seems to remain under 300 milliseconds.</p>
-<p><code>With number of parallel workers set to 4, the execution time remained under 400 milliseconds</code>.</p>
-<p><strong>NOTE: </strong>The domain space on which a search is targeted, the execution time for search tends to reduce the execution time.</p>
-<h2>Another index to create is on field - <code>sl_no</code> to handle updates on highlights or any other fields.</h2>
+<p><code>The execution time increases as we skip 29,000 records</code>. Below that threshold, the execution time seems to remain under 300 milliseconds.</p>
+<p><code>With the number of parallel workers set to 4, the execution time remained under 400 milliseconds</code>.</p>
+<p><strong>NOTE:</strong> The domain space on which a search is targeted tends to reduce the execution time for the search.</p>
+<h2>Another Index to Create on the <code>sl_no</code> Field to Handle Updates on Highlights or Other Fields</h2>
 <p><code>CREATE INDEX sl_no_idx ON bank.transaction_records USING BTREE(sl_no);</code></p>
 <p>&nbsp;</p>
 <pre><code class="language-plaintext">UPDATE bank.transaction_records SET highlight='true' where sl_no IN(4146335,4146348,4146357,4146364,
@@ -380,11 +380,11 @@ Update on bank.transaction_records  (cost=0.44..8.46 rows=1 width=167) (actual t
  Execution Time: 43 ms
 (10 rows)</code></pre>
 <p>Copy</p>
-<h1>Using low-code to create functional UI - To check performance</h1>
-<p>It is also important to understand how the UI handles the data and the user experience it provides when there is a search functionality involved. So I went ahead and used a open source <code>low-code</code> platform. The UI is shown below:</p>
+<h1>Using Low-Code to Create a Functional UI - To Check Performance</h1>
+<p>It is also important to understand how the UI handles the data and the user experience it provides when search functionality is involved. So I went ahead and used an open-source <code>low-code</code> platform. The UI is shown below:</p>
 <figure class="image"><img src="https://wiki.breaksignal.com/low-code-postgres-benchmark-poc.png"></figure>
 <p>&nbsp;</p>
-<p><strong>Note: </strong>All entities (Database, UI, OpenSearch) are hosted and accessed locally. Hence in this POC I am ignoring the network latency/delay.</p>
+<p><strong>Note:</strong> All entities (Database, UI, OpenSearch) are hosted and accessed locally. Hence, in this POC, I am ignoring network latency and delay.</p>
 <h2 style="text-align:center;">Metrics</h2>
 <figure class="table">
   <table style="background-color:rgb(255, 255, 255);border-bottom:solid;border-left:solid;border-right:solid;border-top:solid;">
@@ -424,7 +424,7 @@ Update on bank.transaction_records  (cost=0.44..8.46 rows=1 width=167) (actual t
   </table>
 </figure>
 <p>&nbsp;</p>
-<p>Overall the experience of search was good (what I expected of searching something out of huge number of records). So, the <code>Trigrams</code> approach seems to work.</p>
+<p>Overall, the search experience was good (as expected when searching through a huge number of records). So, the <code>Trigrams</code> approach seems to work well.</p>
 <h1>Benchmarking - The range filter was defaulted</h1>
 <pre><code class="language-plaintext">Desc1: Fee) - Desc2:  LIEN - category: createFinance - Response time: 0.8341240882873535 with response size: 0 and status_code: 200
 Desc1: Financial - Desc2:  MARGIN - category: bureauPull - Response time: 0.7632200717926025 with response size: 2 and status_code: 200
@@ -467,8 +467,8 @@ Desc1: (HMOs) - Desc2:  ADJUSTABLE RATE - category: createFinance - Response tim
 Desc1: complete - Desc2:  CERTIFICATE OF DEPOSIT (CD) - category: blackBoxInvoker - Response time: 0.7781782150268555 with response size: 1 and status_code: 200
 Desc1: (D/E) - Desc2:  INVESTMENT - category: appFormEntityMatching - Response time: 0.3498539924621582 with response size: 1 and status_code: 200</code></pre>
 <p>Copy</p>
-<h1>Few best practices to follow from above observation</h1>
+<h1>Best Practices to Follow Based on the Above Observations</h1>
 <ol>
-  <li>Fix the minimum number of characters to search to <code>3</code> as we are utilising Postgres <code>Trigram</code> index approach.</li>
-  <li>Avoid searching with special characters if the overall length of the word that is being searched including special character is ≤ <code>3</code></li>
+  <li>Set the minimum number of characters for search to <code>3</code>, as we are utilizing the PostgreSQL <code>Trigram</code> index approach.</li>
+  <li>Avoid searching with special characters if the overall length of the word being searched (including the special character) is ≤ <code>3</code>.</li>
 </ol>

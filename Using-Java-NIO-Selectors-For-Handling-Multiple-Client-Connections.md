@@ -1,9 +1,9 @@
 ---
 title: Using Java NIO Selectors for Handling Multiple Client Connections
-description: 
+description: Learn three approaches for handling multiple client connections in Java - single-threaded blocking, multi-threaded, and efficient I/O multiplexing using Java NIO Selectors for scalable network servers.
 published: true
 date: 2023-06-24T18:32:00.508Z
-tags: fastservers, java nio, non-blocking, java, nio, multiplexing, servers
+tags: fastservers, java nio, non-blocking, java, nio, multiplexing, servers, network programming, scalability, selectors
 editor: markdown
 dateCreated: 2023-06-24T18:32:00.508Z
 ---
@@ -12,7 +12,7 @@ dateCreated: 2023-06-24T18:32:00.508Z
 
 When building network servers, efficiently managing multiple client connections is a critical aspect of ensuring scalability and responsiveness. In this blog post, we will explore three approaches for handling multiple client connections in Java. We'll compare the differences between using a single main thread, spawning a new thread for each client connection, and utilizing selectors for efficient I/O multiplexing. Let's dive into the details!
 
-We will be using the below client program to connect to the servers we code in approaches below:
+We will be using the client program below to connect to the servers we code in the approaches discussed:
 ```java
 import java.io.BufferedReader;
 import java.io.IOException;
@@ -127,9 +127,7 @@ import java.io.IOException;
 import java.net.InetSocketAddress;
 import java.nio.ByteBuffer;
 import java.nio.channels.SelectionKey;
-import java.nio
-
-.channels.Selector;
+import java.nio.channels.Selector;
 import java.nio.channels.ServerSocketChannel;
 import java.nio.channels.SocketChannel;
 import java.util.Iterator;

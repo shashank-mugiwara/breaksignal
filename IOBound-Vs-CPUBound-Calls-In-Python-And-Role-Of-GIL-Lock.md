@@ -1,14 +1,14 @@
 ---
-title: Understanding IO Bound vs CPU Bound calls in python and the role of GIL Lock
-description: 
+title: Understanding I/O Bound vs CPU Bound Tasks in Python and the Role of GIL Lock
+description: Learn the differences between I/O bound and CPU bound tasks in Python, and understand how the Global Interpreter Lock (GIL) affects multi-threaded Python programs and their performance.
 published: true
 date: 2023-06-24T18:05:35.642Z
-tags: python, io bound, cpu bound, gil lock, concurrency, parallelism
+tags: python, io bound, cpu bound, gil lock, concurrency, parallelism, multithreading, performance optimization
 editor: markdown
 dateCreated: 2023-06-24T18:03:46.203Z
 ---
 
-# Understanding I/O Bound vs CPU Bound Tasks in Python and the role of GIL Lock
+# Understanding I/O Bound vs CPU Bound Tasks in Python and the Role of GIL Lock
 
 ## Introduction
 When developing applications, it's crucial to understand the nature of your tasks and how they interact with system resources. Two common types of tasks are I/O bound and CPU bound tasks. In addition, Python has a unique feature called the Global Interpreter Lock (GIL), which influences the execution of multi-threaded Python programs. In this article, we'll explore the differences between I/O bound and CPU bound tasks, and delve into the significance of the GIL in Python.
@@ -74,9 +74,7 @@ Understanding the importance of the GIL lock is crucial when developing Python a
 In I/O bound tasks, where the application is primarily waiting for I/O operations to complete, the GIL lock does not significantly impact performance. Since the waiting time is spent outside the Python interpreter, other threads can acquire the GIL and continue execution.
 
 ### 2. Impact on CPU Bound Tasks:
-The GIL lock becomes more relevant in CPU bound tasks that involve computationally intensive operations. The GIL prevents true parallel execution of multiple Python
-
- threads on multiple CPU cores, leading to suboptimal utilization of available resources. This limitation can impact the performance of CPU bound tasks in multi-threaded Python programs.
+The GIL lock becomes more relevant in CPU bound tasks that involve computationally intensive operations. The GIL prevents true parallel execution of multiple Python threads on multiple CPU cores, leading to suboptimal utilization of available resources. This limitation can impact the performance of CPU bound tasks in multi-threaded Python programs.
 
 ### 3. Concurrency with Threads:
 Despite the GIL limitations, threads can still provide benefits in Python applications. Threads are valuable for managing I/O bound tasks efficiently, as they allow concurrent execution and can handle multiple I/O operations concurrently without blocking. However, for CPU bound tasks, threads may not offer the desired performance improvements.
