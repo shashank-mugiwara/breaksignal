@@ -1,6 +1,6 @@
 <!--
 title: Scalable and Efficient Full-Text Searches in PostgreSQL Using Trigram Indexes
-description: Learn how to implement scalable full-text search in PostgreSQL for bank statement analysis using trigram indexes and GIN. Includes performance benchmarks, query optimization, and best practices for handling millions of records.
+description: Learn how to implement scalable full-text search in PostgreSQL for e-commerce order analysis using trigram indexes and GIN. Includes performance benchmarks, query optimization, and best practices for handling millions of records.
 published: true
 date: 2023-06-24T08:58:49.073Z
 tags: postgres, postgresql, database, trigram, indexes, full-text search, GIN index, performance optimization, query performance
@@ -8,32 +8,32 @@ editor: ckeditor
 dateCreated: 2023-06-24T08:57:58.645Z
 -->
 
-<h1 style="text-align:center;">Scalable Full-Text Searches - Bank Statement Analysis - POC on PostgreSQL - 001</h1>
-<p>Total number of records in table <code>transaction<i>records</i></code><i> = 2,09,73,479 (Two crore, 9 Lakh +)</i></p>
+<h1 style="text-align:center;">Scalable Full-Text Searches - Order Event Analysis - POC on PostgreSQL - 001</h1>
+<p>Total number of records in table <code>order<i>events</i></code><i> = 2,09,73,479 (Two crore, 9 Lakh +)</i></p>
 <h2>Problem Statement</h2>
-<p>Given a huge number of records with the schema provided below, find an efficient and fast way to retrieve pattern-matching records. Below is the schema of the <code>transaction_records</code> table.</p>
-<pre><code class="language-plaintext">CREATE TABLE IF NOT EXISTS bank.transaction_records
+<p>Given a huge number of records with the schema provided below, find an efficient and fast way to retrieve pattern-matching records. Below is the schema of the <code>order_events</code> table.</p>
+<pre><code class="language-plaintext">CREATE TABLE IF NOT EXISTS ecommerce.order_events
 (
     id character varying NOT NULL,
-    account_no character varying NOT NULL,
-    transaction_date date NOT NULL,
-    chq_no character varying,
+    order_id character varying NOT NULL,
+    event_date date NOT NULL,
+    reference_no character varying,
     highlight boolean,
-    sl_no integer,
-    is_debit boolean,
-    debit_amt double precision,
-    credit_amt double precision,
+    sequence_no integer,
+    is_refund boolean,
+    refund_amount double precision,
+    payment_amount double precision,
     description text,
-    category text,
-    CONSTRAINT transaction_records_pkey PRIMARY KEY (id)
+    event_type text,
+    CONSTRAINT order_events_pkey PRIMARY KEY (id)
 )</code></pre>
 <p>Copy</p>
 <p>Use the below example query to fetch and count records:</p>
-<pre><code class="language-plaintext">SELECT * FROM bank.transaction_records WHERE description LIKE '%NEFT%';
+<pre><code class="language-plaintext">SELECT * FROM ecommerce.order_events WHERE description LIKE '%shipped%';
 
 OR
 
-SELECT COUNT(*) from bank.transaction_records WHERE description LIKE '%NEFT%';</code></pre>
+SELECT COUNT(*) from ecommerce.order_events WHERE description LIKE '%shipped%';</code></pre>
 <p>Copy</p>
 <h1>The Data - Generating Distinct Descriptions Every Time</h1>
 <p>We will use the script below to populate large amounts of data in PostgreSQL. The main objective of this data is to match text, so populating a distinct description for every record is essential to understand how indexes perform with a variety of data. Therefore, there may be some variations with respect to column names in the above schema. We shall use the <code>essential_generators</code> Python package to generate random statements every time.</p>
@@ -46,45 +46,51 @@ import csv
 import datetime
 import dateutil.parser as parser
 
-category_list = ["createFinance",
-"sendLoanAgreement",
-"fraudCheck",
-"blackBoxInvoker",
-"updateLoanStartDate",
-"withdrawalInstruction",
-"updateLoanDetails",
-"virtualAccountCreation",
-"customerCreation",
-"generateCLPScheduleLetter",
-"GstinConsentLink",
-"disbursalConfirmationReceived",
-"pushToDisbursementQueue",
-"skipPullAndParseBureau",
-"updateWorkflowId",
-"uploadBureauReport",
-"bureauPull",
-"groupAmountRecalculate",
-"statusChange",
-"loanDisbursal",
-"uploadExternalBureau",
-"appFormStatus",
-"groupApprovalForPending",
-"validateDocsPresent",
-"appFormSave",
-"updateOpsWorkflowId",
-"groupApproved",
-"ids",
-"pennantWorkflow",
-"createOrUpdateCustomer",
-"appFormStatusUpdate",
-"appFormEntityMatching",
-"dedupe",
-"withdrawalConfirmation",
-"checkForBureauPull",
-"preApprovalOfferPolicy",
-"RejectRepayment",
-"disbursalTrigger",
-"sendCLPScheduleLetter"]
+event_type_list = ["orderCreated",
+"orderConfirmed",
+"inventoryCheck",
+"paymentProcessing",
+"paymentValidation",
+"shippingLabelGenerated",
+"orderPacked",
+"warehouseDispatched",
+"carrierPickup",
+"inTransit",
+"outForDelivery",
+"delivered",
+"deliveryConfirmation",
+"orderCancelled",
+"refundInitiated",
+"refundProcessed",
+"returnRequested",
+"returnApproved",
+"returnReceived",
+"qualityCheck",
+"restockInventory",
+"customerNotification",
+"trackingUpdated",
+"addressValidation",
+"fraudCheckPending",
+"fraudCheckPassed",
+"invoiceGenerated",
+"shipmentDelayed",
+"deliveryAttempted",
+"orderOnHold",
+"priorityShipping",
+"giftWrappingAdded",
+"discountApplied",
+"loyaltyPointsAwarded",
+"feedbackRequested",
+"reviewSubmitted",
+"warrantyRegistered",
+"subscriptionCreated",
+"subscriptionRenewed",
+"backorderNotified",
+"preorderConfirmed",
+"bundleCreated",
+"promoCodeApplied",
+"cartAbandoned",
+"cartRecovered"]
 import random
 
 counter = 0
@@ -94,24 +100,24 @@ def run_methods():
     global counter
     for i in range(0, 20):
         try:
-            connection = psycopg2.connect(user="shashankj", password="Shashank@1999", host="127.0.0.1",
+            connection = psycopg2.connect(user="dbuser", password="password", host="127.0.0.1",
                                           port="5432", database="postgres")
             cursor = connection.cursor()
-            with open('BankStatementsData.csv', 'r') as bs:
-                reader = csv.DictReader(bs)
+            with open('OrderEventsData.csv', 'r') as oe:
+                reader = csv.DictReader(oe)
                 for line in reader:
                     counter = counter + 1
-                    withdrawal_amount = line['withdrawal_amt']
-                    if withdrawal_amount is None or withdrawal_amount.strip() == '':
-                        withdrawal_amount = float("0.0")
+                    refund_amount = line['refund_amt']
+                    if refund_amount is None or refund_amount.strip() == '':
+                        refund_amount = float("0.0")
                     else:
-                        withdrawal_amount = float(withdrawal_amount.strip().replace(',', ''))
+                        refund_amount = float(refund_amount.strip().replace(',', ''))
 
-                    deposit_amount = line['deposit_amt']
-                    if deposit_amount is None or deposit_amount.strip() == '':
-                        deposit_amount = float("0.0")
+                    payment_amount = line['payment_amt']
+                    if payment_amount is None or payment_amount.strip() == '':
+                        payment_amount = float("0.0")
                     else:
-                        deposit_amount = float(deposit_amount.strip().replace(',', ''))
+                        payment_amount = float(payment_amount.strip().replace(',', ''))
 
                     balance_amount = line['balance_amt']
                     if balance_amount is None or balance_amount.strip() == '':
@@ -119,25 +125,25 @@ def run_methods():
                     else:
                         balance_amount = float(balance_amount.strip().replace(',', ''))
 
-                    INSERT_QUERY = """INSERT INTO bank.transaction_records (id, account_no, transaction_date, chq_no,
-                    highlight, sl_no, is_debit, debit_amt, credit_amt, description, category) VALUES (%s, %s, %s, %s, %s, %s,
+                    INSERT_QUERY = """INSERT INTO ecommerce.order_events (id, order_id, event_date, reference_no,
+                    highlight, sequence_no, is_refund, refund_amount, payment_amount, description, event_type) VALUES (%s, %s, %s, %s, %s, %s,
                     %s, %s, %s, %s, %s); """
 
-                    account_num = str(line['account_no'].replace("'", ''))
-                    transaction_id = str(account_num) + '-' + str(uuid.uuid4())
-                    chq_no = line['chq_no']
-                    transaction_date = datetime.datetime.strptime(
-                        parser.parse(line['value_date']).date().strftime("%Y-%m-%dT%H:%M:%S.000Z"),
+                    order_number = str(line['order_id'].replace("'", ''))
+                    event_id = str(order_number) + '-' + str(uuid.uuid4())
+                    ref_no = line['reference_no']
+                    event_date = datetime.datetime.strptime(
+                        parser.parse(line['event_date']).date().strftime("%Y-%m-%dT%H:%M:%S.000Z"),
                         '%Y-%m-%dT%H:%M:%S.000Z')
                     description = gen.sentence()
-                    category = random.choice(category_list)
+                    event_type = random.choice(event_type_list)
 
-                    is_debit = False
-                    if withdrawal_amount &gt; 0:
-                        is_debit = True
+                    is_refund = False
+                    if refund_amount &gt; 0:
+                        is_refund = True
 
-                    record_to_insert = (transaction_id, account_num, transaction_date, chq_no, False, counter, is_debit,
-                                        withdrawal_amount, deposit_amount, description, category)
+                    record_to_insert = (event_id, order_number, event_date, ref_no, False, counter, is_refund,
+                                        refund_amount, payment_amount, description, event_type)
 
                     cursor.execute(INSERT_QUERY, record_to_insert)
                     connection.commit()
@@ -157,9 +163,9 @@ if __name__ == '__main__':
 <p>&nbsp;</p>
 <h1>POC - Without Using Any Indexes</h1>
 <p>Query ran without the use of any indexed data.<br>Note: <code>max_worker_processes = 8</code></p>
-<pre><code class="language-plaintext">SELECT COUNT(*) FROM bank.transaction_records WHERE description LIKE '%NEFT%'; ~ 14 seconds = 16,49,860 records
+<pre><code class="language-plaintext">SELECT COUNT(*) FROM ecommerce.order_events WHERE description LIKE '%shipped%'; ~ 14 seconds = 16,49,860 records
 
-SELECT * FROM bank.transaction_records WHERE description ILIKE '%NEFT%'; ~ 12 seconds</code></pre>
+SELECT * FROM ecommerce.order_events WHERE description ILIKE '%shipped%'; ~ 12 seconds</code></pre>
 <p>Copy</p>
 <p>Use of other data types was also tried, including <code>character varying</code>, <code>text</code>, and <code>char</code>. It made no difference as the underlying datatype is based on PostgreSQL's <code>varlena</code>. The text below is taken from the official PostgreSQL documentation.</p>
 <pre><code class="language-plaintext">There is no performance difference among these three types,
@@ -172,32 +178,32 @@ its additional storage costs. In most situations text or character varying shoul
 <p>Copy</p>
 <p>&nbsp;</p>
 <h1>The Actual Problem of Full-Text Searches</h1>
-<p>Consider a string <code>shashank</code> and here we need to search for a substring <code>nk</code>. The only solution is to iterate all values in subsets and check if any subset contains <code>nk</code>. This is because the value can appear anywhere, and a search on an index won't help as we'd still have to compare every value one by one with no way of reducing the set of rows to search through. This leads to slow query performance.</p>
+<p>Consider a string <code>delivered</code> and here we need to search for a substring <code>red</code>. The only solution is to iterate all values in subsets and check if any subset contains <code>red</code>. This is because the value can appear anywhere, and a search on an index won't help as we'd still have to compare every value one by one with no way of reducing the set of rows to search through. This leads to slow query performance.</p>
 <p>Let us explore a few basic search processes that PostgreSQL offers. To start with, let's go with a full-text search.</p>
 <p>To perform a full-text search in PostgreSQL, consider the command below:</p>
 <pre><code class="language-plaintext">SELECT *
-FROM bank.transactions
-WHERE to_tsvector('english', description) @@ to_tsquery('english', 'EMI');</code></pre>
+FROM ecommerce.order_events
+WHERE to_tsvector('english', description) @@ to_tsquery('english', 'shipped');</code></pre>
 <p>Copy</p>
 <p><code>to_tsvector</code> parses a textual document into tokens, reduces the tokens to lexemes, and returns a <code>tsvector</code> which lists the lexemes together with their positions in the document. The document is processed according to the specified or default text search configuration. Here is a simple example:</p>
-<pre><code class="language-plaintext">SELECT to_tsvector('english', 'NEFT/DTF SRI RAMANANDA FINANCE EMI'); #english - configuration specifed to tell Postgres on which config to split
+<pre><code class="language-plaintext">SELECT to_tsvector('english', 'Package shipped via FedEx Express delivery'); #english - configuration specifed to tell Postgres on which config to split
 
           to_tsvector
 ------------------------------------------------------
-'emi':5 'financ':4 'neft/dtf':1 'ramananda':3 'sri':2</code></pre>
+'deliv':5 'express':4 'fedex':3 'packag':1 'ship':2 'via':3</code></pre>
 <p>Copy</p>
 <p><code>to_tsquery</code> creates a <code>tsquery</code> value from <code>querytext</code>, which must consist of single tokens separated by the <code>tsquery</code> operators <code>&amp;</code> (AND), <code>|</code> (OR), <code>!</code> (NOT), and <code>&lt;-&gt;</code> (FOLLOWED BY), possibly grouped using parentheses. In other words, the input to <code>to_tsquery</code> must already follow the general rules for <code>tsquery</code> input. The difference is that while basic <code>tsquery</code> input takes the tokens at face value, <code>to_tsquery</code> normalizes each token into a lexeme using the specified or default configuration, and discards any tokens that are stop words according to the configuration. For example:</p>
-<pre><code class="language-plaintext">SELECT to_tsquery('english', 'NEFT &amp; EMI'); #english - configuration specifed to tell Postgres on which config to split
+<pre><code class="language-plaintext">SELECT to_tsquery('english', 'shipped &amp; delivery'); #english - configuration specifed to tell Postgres on which config to split
 
   to_tsquery
 ---------------
- 'neft' &amp; 'emi'</code></pre>
+ 'ship' &amp; 'deliv'</code></pre>
 <p>Copy</p>
-<p>Now in order to utilize the full text search functionality, we have to keep a separate vector say <code>description_ts_vector</code>. For every entry that we add into the <code>transaction_records</code> table we have to update the vector. To do this we might need to write a trigger or script to update individual entry or vector as whole.</p>
-<p>Another problem with full text search is that words are broken up according to the rules defined by the language of the text. For example, on PostgreSQL converting <code>NEFT/DTF SRI RAMANANDA FINANCE EMI</code> to a text vector results in the values <code>emi</code>, <code>financ</code>, <code>neft/dtf</code>, <code>ramananda</code> and <code>sri</code>. This means that searching for <code>finance</code> or <code>ramananda</code> <i>will</i> match the data, but searching for <code>rama</code> <i>will not</i>. To showcase this we can run the following query in PostgreSQL:</p>
+<p>Now in order to utilize the full text search functionality, we have to keep a separate vector say <code>description_ts_vector</code>. For every entry that we add into the <code>order_events</code> table we have to update the vector. To do this we might need to write a trigger or script to update individual entry or vector as whole.</p>
+<p>Another problem with full text search is that words are broken up according to the rules defined by the language of the text. For example, on PostgreSQL converting <code>Package shipped via FedEx Express delivery</code> to a text vector results in the values <code>deliv</code>, <code>express</code>, <code>fedex</code>, <code>packag</code>, and <code>ship</code>. This means that searching for <code>express</code> or <code>delivery</code> <i>will</i> match the data, but searching for <code>expr</code> <i>will not</i>. To showcase this we can run the following query in PostgreSQL:</p>
 <p><strong>To showcase that full token search works</strong></p>
 <pre><code class="language-plaintext">SELECT 1
-WHERE to_tsvector('english', 'NEFT/DTF SRI RAMANANDA FINANCE EMI') @@ to_tsquery('english', 'FINANCE');
+WHERE to_tsvector('english', 'Package shipped via FedEx Express delivery') @@ to_tsquery('english', 'express');
 
 # Output
 ---
@@ -206,42 +212,43 @@ WHERE to_tsvector('english', 'NEFT/DTF SRI RAMANANDA FINANCE EMI') @@ to_tsquery
 <p>Copy</p>
 <p><strong>To showcase that partial token search wont work</strong></p>
 <pre><code class="language-plaintext">SELECT 1
-WHERE to_tsvector('english', 'NEFT/DTF SRI RAMANANDA FINANCE EMI') @@ to_tsquery('english', 'RAMA');
+WHERE to_tsvector('english', 'Package shipped via FedEx Express delivery') @@ to_tsquery('english', 'expr');
 
 # Output - No Output
 ---
 ---</code></pre>
 <p>Copy</p>
 <h1>PostgreSQL Trigram Indexes</h1>
-<p><strong>Trigrams</strong> are a special case of the <code>n-gram</code> where n is 3. In the fields of computational linguistics and probability, an <i><strong>n</strong></i><strong>-gram</strong> (sometimes also called <strong>Q-gram</strong>) is a contiguous sequence of <i>n</i> items from a given sample of text or speech. Trigrams are basically words broken up into sequences of 3 letters. Consider the word <code>shashank</code> - the possible trigrams of this word will be:</p>
-<pre><code class="language-plaintext">s h a
-h a s
-a s h
-s h a
-h a n
-a n k</code></pre>
+<p><strong>Trigrams</strong> are a special case of the <code>n-gram</code> where n is 3. In the fields of computational linguistics and probability, an <i><strong>n</strong></i><strong>-gram</strong> (sometimes also called <strong>Q-gram</strong>) is a contiguous sequence of <i>n</i> items from a given sample of text or speech. Trigrams are basically words broken up into sequences of 3 letters. Consider the word <code>delivered</code> - the possible trigrams of this word will be:</p>
+<pre><code class="language-plaintext">d e l
+e l i
+l i v
+i v e
+v e r
+e r e
+r e d</code></pre>
 <p>Copy</p>
 <p>Basically, we need to generate all trigrams and store them into a vector, apply text matching on these, and reverse-find the indexes to fetch desired results. We can skip all this boilerplate code by using PostgreSQL's built-in <code>pg_trgm</code> extension. To demonstrate, we shall use the query below:</p>
-<pre><code class="language-plaintext">select show_trgm('NEFT/DTF SRI RAMANANDA FINANCE EMI');
+<pre><code class="language-plaintext">select show_trgm('Package shipped via FedEx Express delivery');
 
                                   trgm's
 -----------------------------------------------------------------------------------------------------------------------------------------------------------------------------
-{"  d","  e","  f","  n","  r","  s"," dt"," em"," fi"," ne"," ra"," sr",ama,ana,anc,and,"ce ","da ",dtf,eft,emi,fin,"ft ",ina,man,"mi ",nan,nce,nda,nef,ram,"ri ",sri,"tf "}</code></pre>
+{"  d","  e","  f","  p","  s","  v"," de"," ex"," fe"," pa"," sh"," vi",ack,age,ckd,del,ede,ery,ess,exp,fed,hip,ive,kag,"ks ",liv,"ry ",pak,ped,pre,res,sde,"se ",shi,spr,"ss ",ver,via,"x e","xp "}</code></pre>
 <p>Copy</p>
 <p>A big benefit of this extension is that these trigram indexes can be used by the LIKE and ILIKE conditions without having to change your queries or set up complex full-text search systems. As you can see, the gram size is not more than 3. Additionally, we need to configure the inverted indexes on the desired text.</p>
 <p>To create a GIN index (<strong>Generalized Inverted Index</strong>):</p>
-<pre><code class="language-plaintext">CREATE INDEX CONCURRENTLY transaction_records_description_trigram_idx
-ON bank.transaction_records
+<pre><code class="language-plaintext">CREATE INDEX CONCURRENTLY order_events_description_trigram_idx
+ON ecommerce.order_events
 USING gin (description gin_trgm_ops);
 
 Query returned successfully in 7 min 45 secs.</code></pre>
 <p>Copy</p>
 <p>The use of the <code>pattern_ops</code> strategy reduces the number of different operations that can be performed on indexes. The main reason for having operator classes is that for some data types, there could be more than one meaningful index behavior. Reducing the number of behaviors available for a particular index helps the PostgreSQL query planner to efficiently generate a plan; otherwise, the planner resorts to naive sequential scans.</p>
-<p>Let us now try to retrieve the transaction records. Similarly, we can also paginate using the standard <code>LIMIT-OFFSET</code> approach.</p>
-<h3><mark class="marker-yellow">Get the first 10,000 transactions that contain the substring </mark><code><mark class="marker-yellow">eur</mark></code><mark class="marker-yellow">.</mark></h3>
+<p>Let us now try to retrieve the order events. Similarly, we can also paginate using the standard <code>LIMIT-OFFSET</code> approach.</p>
+<h3><mark class="marker-yellow">Get the first 10,000 events that contain the substring </mark><code><mark class="marker-yellow">ship</mark></code><mark class="marker-yellow">.</mark></h3>
 <pre><code class="language-plaintext">SELECT description
-FROM bank.transaction_records
-WHERE description ILIKE '%eur%' LIMIT 10000;
+FROM ecommerce.order_events
+WHERE description ILIKE '%ship%' LIMIT 10000;
 
                                 QUERY PLAN
 ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
@@ -253,9 +260,9 @@ WHERE description ILIKE '%eur%' LIMIT 10000;
          Workers Planned: 2
          Workers Launched: 2
          Buffers: shared hit=7278
-         -&gt;  Parallel Bitmap Heap Scan on bank.transaction_records  (cost=1743.45..431331.93 rows=78250 width=60) (actual time=61.740..104.362 rows=3336 loops=3)
+         -&gt;  Parallel Bitmap Heap Scan on ecommerce.order_events  (cost=1743.45..431331.93 rows=78250 width=60) (actual time=61.740..104.362 rows=3336 loops=3)
                Output: description
-               Recheck Cond: (transaction_records.description ~~* '%eur%'::text)
+               Recheck Cond: (order_events.description ~~* '%ship%'::text)
                Rows Removed by Index Recheck: 93225
                Heap Blocks: lossy=2545
                Buffers: shared hit=7278
@@ -263,8 +270,8 @@ WHERE description ILIKE '%eur%' LIMIT 10000;
                  Buffers: shared hit=2260
                Worker 1:  actual time=58.905..101.858 rows=3293 loops=1
                  Buffers: shared hit=2392
-               -&gt;  Bitmap Index Scan on transaction_records_description_trigram_idx  (cost=0.00..1696.50 rows=187800 width=0) (actual time=61.057..61.057 rows=344056 loops=1)
-                     Index Cond: (transaction_records.description ~~* '%eur%'::text)
+               -&gt;  Bitmap Index Scan on order_events_description_trigram_idx  (cost=0.00..1696.50 rows=187800 width=0) (actual time=61.057..61.057 rows=344056 loops=1)
+                     Index Cond: (order_events.description ~~* '%ship%'::text)
                      Buffers: shared hit=81
  Planning:
    Buffers: shared hit=1
@@ -272,10 +279,10 @@ WHERE description ILIKE '%eur%' LIMIT 10000;
  Execution Time: 113.034 ms
  ===================================================================================================================================================================================</code></pre>
 <p>Copy</p>
-<h3><mark class="marker-yellow">Skip the first 1,000 transactions and get the next 1,000 records - Number of parallel gather workers = 2</mark></h3>
+<h3><mark class="marker-yellow">Skip the first 1,000 events and get the next 1,000 records - Number of parallel gather workers = 2</mark></h3>
 <pre><code class="language-plaintext">SELECT description
-FROM bank.transaction_records
-WHERE description ILIKE '%eur%' OFFSET 1000 LIMIT 1000;
+FROM ecommerce.order_events
+WHERE description ILIKE '%ship%' OFFSET 1000 LIMIT 1000;
 
                                                                                  QUERY PLAN
 -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
@@ -287,9 +294,9 @@ WHERE description ILIKE '%eur%' OFFSET 1000 LIMIT 1000;
          Workers Planned: 2
          Workers Launched: 2
          Buffers: shared hit=7985
-         -&gt;  Parallel Bitmap Heap Scan on bank.transaction_records  (cost=1743.45..431331.93 rows=78250 width=60) (actual time=60.138..109.573 rows=3668 loops=3)
+         -&gt;  Parallel Bitmap Heap Scan on ecommerce.order_events  (cost=1743.45..431331.93 rows=78250 width=60) (actual time=60.138..109.573 rows=3668 loops=3)
                Output: description
-               Recheck Cond: (transaction_records.description ~~* '%eur%'::text)
+               Recheck Cond: (order_events.description ~~* '%ship%'::text)
                Rows Removed by Index Recheck: 102543
                Heap Blocks: lossy=2728
                Buffers: shared hit=7985
@@ -297,8 +304,8 @@ WHERE description ILIKE '%eur%' OFFSET 1000 LIMIT 1000;
                  Buffers: shared hit=2545
                Worker 1:  actual time=57.547..107.318 rows=3659 loops=1
                  Buffers: shared hit=2631
-               -&gt;  Bitmap Index Scan on transaction_records_description_trigram_idx  (cost=0.00..1696.50 rows=187800 width=0) (actual time=60.510..60.511 rows=344056 loops=1)
-                     Index Cond: (transaction_records.description ~~* '%eur%'::text)
+               -&gt;  Bitmap Index Scan on order_events_description_trigram_idx  (cost=0.00..1696.50 rows=187800 width=0) (actual time=60.510..60.511 rows=344056 loops=1)
+                     Index Cond: (order_events.description ~~* '%ship%'::text)
                      Buffers: shared hit=81
  Planning:
    Buffers: shared hit=1
@@ -306,15 +313,15 @@ WHERE description ILIKE '%eur%' OFFSET 1000 LIMIT 1000;
  Execution Time: 119.548 ms
 (25 rows)
 
-postgres=# EXPLAIN (analyze, verbose, timing, costs, buffers) SELECT description FROM bank.transaction_records WHERE description ILIKE '%eur%' OFFSET 1000 LIMIT 1000;
+postgres=# EXPLAIN (analyze, verbose, timing, costs, buffers) SELECT description FROM ecommerce.order_events WHERE description ILIKE '%ship%' OFFSET 1000 LIMIT 1000;
                                                               QUERY PLAN
 ---------------------------------------------------------------------------------------------------------------------------------------
  Limit  (cost=3707.64..7415.28 rows=1000 width=60) (actual time=52.121..79.359 rows=1000 loops=1)
    Output: description
    Buffers: shared hit=7 read=2649
-   -&gt;  Seq Scan on bank.transaction_records  (cost=0.00..696295.00 rows=187800 width=60) (actual time=0.094..79.244 rows=2000 loops=1)
+   -&gt;  Seq Scan on ecommerce.order_events  (cost=0.00..696295.00 rows=187800 width=60) (actual time=0.094..79.244 rows=2000 loops=1)
          Output: description
-         Filter: (transaction_records.description ~~* '%eur%'::text)
+         Filter: (order_events.description ~~* '%ship%'::text)
          Rows Removed by Filter: 105825
          Buffers: shared hit=7 read=2649
  Planning:
@@ -323,10 +330,10 @@ postgres=# EXPLAIN (analyze, verbose, timing, costs, buffers) SELECT description
  Execution Time: 79.429 ms
 (12 rows)</code></pre>
 <p>Copy</p>
-<h3><mark class="marker-yellow">Skip the first 10,000 transactions and get the next 1,000 records - Number of parallel gather workers = 2</mark></h3>
+<h3><mark class="marker-yellow">Skip the first 10,000 events and get the next 1,000 records - Number of parallel gather workers = 2</mark></h3>
 <pre><code class="language-plaintext">SELECT description
-FROM bank.transaction_records
-WHERE description ILIKE '%eur%' OFFSET 10000 LIMIT 1000;
+FROM ecommerce.order_events
+WHERE description ILIKE '%ship%' OFFSET 10000 LIMIT 1000;
 
 
                                                                                  QUERY PLAN
@@ -339,9 +346,9 @@ WHERE description ILIKE '%eur%' OFFSET 10000 LIMIT 1000;
          Workers Planned: 2
          Workers Launched: 2
          Buffers: shared hit=7983
-         -&gt;  Parallel Bitmap Heap Scan on bank.transaction_records  (cost=1743.45..431331.93 rows=78250 width=60) (actual time=63.862..109.811 rows=3667 loops=3)
+         -&gt;  Parallel Bitmap Heap Scan on ecommerce.order_events  (cost=1743.45..431331.93 rows=78250 width=60) (actual time=63.862..109.811 rows=3667 loops=3)
                Output: description
-               Recheck Cond: (transaction_records.description ~~* '%eur%'::text)
+               Recheck Cond: (order_events.description ~~* '%ship%'::text)
                Rows Removed by Index Recheck: 102510
                Heap Blocks: lossy=2768
                Buffers: shared hit=7983
@@ -349,8 +356,8 @@ WHERE description ILIKE '%eur%' OFFSET 10000 LIMIT 1000;
                  Buffers: shared hit=2607
                Worker 1:  actual time=59.744..105.860 rows=3537 loops=1
                  Buffers: shared hit=2527
-               -&gt;  Bitmap Index Scan on transaction_records_description_trigram_idx  (cost=0.00..1696.50 rows=187800 width=0) (actual time=66.144..66.144 rows=344056 loops=1)
-                     Index Cond: (transaction_records.description ~~* '%eur%'::text)
+               -&gt;  Bitmap Index Scan on order_events_description_trigram_idx  (cost=0.00..1696.50 rows=187800 width=0) (actual time=66.144..66.144 rows=344056 loops=1)
+                     Index Cond: (order_events.description ~~* '%ship%'::text)
                      Buffers: shared hit=81
  Planning:
    Buffers: shared hit=1
@@ -361,18 +368,18 @@ WHERE description ILIKE '%eur%' OFFSET 10000 LIMIT 1000;
 <p><code>The execution time increases as we skip 29,000 records</code>. Below that threshold, the execution time seems to remain under 300 milliseconds.</p>
 <p><code>With the number of parallel workers set to 4, the execution time remained under 400 milliseconds</code>.</p>
 <p><strong>NOTE:</strong> The domain space on which a search is targeted tends to reduce the execution time for the search.</p>
-<h2>Another Index to Create on the <code>sl_no</code> Field to Handle Updates on Highlights or Other Fields</h2>
-<p><code>CREATE INDEX sl_no_idx ON bank.transaction_records USING BTREE(sl_no);</code></p>
+<h2>Another Index to Create on the <code>sequence_no</code> Field to Handle Updates on Highlights or Other Fields</h2>
+<p><code>CREATE INDEX sequence_no_idx ON ecommerce.order_events USING BTREE(sequence_no);</code></p>
 <p>&nbsp;</p>
-<pre><code class="language-plaintext">UPDATE bank.transaction_records SET highlight='true' where sl_no IN(4146335,4146348,4146357,4146364,
+<pre><code class="language-plaintext">UPDATE ecommerce.order_events SET highlight='true' where sequence_no IN(4146335,4146348,4146357,4146364,
 4146371,4146377,4146389,4146397,4146404,4146410,4146417,4146427,4146432,4146441,4146445,4146455,4146464,4146472,4146490,4146494);
 
 -----------------------------------------------------------------------------------------------------------------
-Update on bank.transaction_records  (cost=0.44..8.46 rows=1 width=167) (actual time=1.052..1.053 rows=0 loops=1)
+Update on ecommerce.order_events  (cost=0.44..8.46 rows=1 width=167) (actual time=1.052..1.053 rows=0 loops=1)
    Buffers: shared hit=5 dirtied=1
-   -&gt;  Index Scan using sl_no_idx on bank.transaction_records  (cost=0.44..8.46 rows=1 width=167) (actual time=0.233..0.234 rows=1 loops=1)
-         Output: id, account_no, transaction_date, chq_no, true, sl_no, is_debit, debit_amt, credit_amt, description, category, ctid
-         Index Cond: (transaction_records.sl_no = 12237642)
+   -&gt;  Index Scan using sequence_no_idx on ecommerce.order_events  (cost=0.44..8.46 rows=1 width=167) (actual time=0.233..0.234 rows=1 loops=1)
+         Output: id, order_id, event_date, reference_no, true, sequence_no, is_refund, refund_amount, payment_amount, description, event_type, ctid
+         Index Cond: (order_events.sequence_no = 12237642)
          Buffers: shared hit=4
  Planning:
    Buffers: shared hit=154
@@ -426,46 +433,46 @@ Update on bank.transaction_records  (cost=0.44..8.46 rows=1 width=167) (actual t
 <p>&nbsp;</p>
 <p>Overall, the search experience was good (as expected when searching through a huge number of records). So, the <code>Trigrams</code> approach seems to work well.</p>
 <h1>Benchmarking - The range filter was defaulted</h1>
-<pre><code class="language-plaintext">Desc1: Fee) - Desc2:  LIEN - category: createFinance - Response time: 0.8341240882873535 with response size: 0 and status_code: 200
-Desc1: Financial - Desc2:  MARGIN - category: bureauPull - Response time: 0.7632200717926025 with response size: 2 and status_code: 200
-Desc1: Ratio - Desc2:  PROSPECTUS - category: bureauPull - Response time: 0.9750120639801025 with response size: 10 and status_code: 200
-Desc1: (CV) - Desc2:  INTEREST - category: GstinConsentLink - Response time: 0.8013160228729248 with response size: 1 and status_code: 200
-Desc1: Conflict - Desc2:  ANNUITY - category: sendCLPScheduleLetter - Response time: 0.28148913383483887 with response size: 1 and status_code: 200
-Desc1: of - Desc2:  RISK - category: appFormSave - Response time: 5.500224828720093 with response size: 22 and status_code: 200
-Desc1: Bond - Desc2:  TERM - category: groupApprovalForPending - Response time: 0.5422849655151367 with response size: 17 and status_code: 200
-Desc1: (AFR) - Desc2:  FOREIGN EXCHANGE - category: sendLoanAgreement - Response time: 0.5310039520263672 with response size: 1 and status_code: 200
-Desc1: Hathaway - Desc2:  FUNDS - category: RejectRepayment - Response time: 0.22664308547973633 with response size: 0 and status_code: 200
-Desc1: Earnings - Desc2:  FIDUCIARY - category: updateLoanDetails - Response time: 0.29802703857421875 with response size: 4 and status_code: 200
-Desc1: Definition - Desc2: SERVICE CHARGE - category: appFormEntityMatching - Response time: 0.5751962661743164 with response size: 1 and status_code: 200
-Desc1: (EAC) - Desc2:  AUTOMATED TELLER MACHINE (ATM) - category: updateLoanDetails - Response time: 0.4712231159210205 with response size: 1 and status_code: 200
-Desc1: With - Desc2:  DISCOUNT RATE - category: virtualAccountCreation - Response time: 0.4379410743713379 with response size: 0 and status_code: 200
-Desc1: Paid - Desc2:  REPOSSESSION - category: groupAmountRecalculate - Response time: 0.1974022388458252 with response size: 1 and status_code: 200
-Desc1: Accounting - Desc2:  FEDERAL DEPOSIT INSURANCE CORPORATION (FDIC) - category: withdrawalInstruction - Response time: 1.1938531398773193 with response size: 2 and status_code: 200
-Desc1: Return - Desc2:  DISCOUNT RATE - category: generateCLPScheduleLetter - Response time: 0.23928284645080566 with response size: 1 and status_code: 200
-Desc1: General - Desc2: FD INTEREST - category: appFormEntityMatching - Response time: 0.8484628200531006 with response size: 3 and status_code: 200
-Desc1: (FICA) - Desc2:  COLLATERAL - category: appFormStatusUpdate - Response time: 0.9916658401489258 with response size: 0 and status_code: 200
-Desc1: Economic - Desc2: SMS ALERT CHARGE - category: groupApproved - Response time: 0.5275177955627441 with response size: 1 and status_code: 200
-Desc1: Exchange-Traded - Desc2:  FOREIGN EXCHANGE - category: appFormStatusUpdate - Response time: 0.2814311981201172 with response size: 0 and status_code: 200
-Desc1: terms - Desc2: NEFT TRANSFER - category: fraudCheck - Response time: 0.2422189712524414 with response size: 4 and status_code: 200
-Desc1: Treasury - Desc2:  MARKET - category: uploadExternalBureau - Response time: 0.3987157344818115 with response size: 3 and status_code: 200
-Desc1: Share - Desc2:  FEDERAL DEPOSIT INSURANCE CORPORATION (FDIC) - category: appFormStatus - Response time: 0.32690978050231934 with response size: 0 and status_code: 200
-Desc1: C - Desc2:  FINANCE - category: checkForBureauPull - Response time: 4.847761869430542 with response size: 448 and status_code: 200
-Desc1: 51% - Desc2:  BALANCE - category: appFormSave - Response time: 5.148753881454468 with response size: 50 and status_code: 200
-Desc1: Fixed - Desc2:  MARGIN - category: skipPullAndParseBureau - Response time: 0.2740499973297119 with response size: 2 and status_code: 200
-Desc1: (EPA) - Desc2: ATM WITHDRAWAL - category: bureauPull - Response time: 0.22954797744750977 with response size: 2 and status_code: 200
-Desc1: Testing - Desc2:  DEBT - category: groupApproved - Response time: 0.23038792610168457 with response size: 1 and status_code: 200
-Desc1: Good - Desc2:  QUOTE - category: validateDocsPresent - Response time: 0.12750792503356934 with response size: 6 and status_code: 200
-Desc1: Index - Desc2: CHEQUE DEPOSIT - category: groupAmountRecalculate - Response time: 0.7269301414489746 with response size: 2 and status_code: 200
-Desc1: of - Desc2:  CHECK - category: appFormStatusUpdate - Response time: 4.779253959655762 with response size: 10 and status_code: 200
-Desc1: and - Desc2:  TRADE - category: bureauPull - Response time: 1.8259990215301514 with response size: 45 and status_code: 200
-Desc1: Equity - Desc2:  FINANCE - category: RejectRepayment - Response time: 0.27729368209838867 with response size: 4 and status_code: 200
-Desc1: Scorecard - Desc2:  EARNINGS - category: createOrUpdateCustomer - Response time: 0.17746496200561523 with response size: 0 and status_code: 200
-Desc1: Profit - Desc2:  YIELD - category: groupApprovalForPending - Response time: 0.10060572624206543 with response size: 0 and status_code: 200
-Desc1: Per - Desc2:  EARNINGS - category: updateLoanStartDate - Response time: 0.07949614524841309 with response size: 4 and status_code: 200
-Desc1: High/Low - Desc2: NEFT TRANSFER - category: appFormStatusUpdate - Response time: 0.20550107955932617 with response size: 0 and status_code: 200
-Desc1: (HMOs) - Desc2:  ADJUSTABLE RATE - category: createFinance - Response time: 0.45916223526000977 with response size: 0 and status_code: 200
-Desc1: complete - Desc2:  CERTIFICATE OF DEPOSIT (CD) - category: blackBoxInvoker - Response time: 0.7781782150268555 with response size: 1 and status_code: 200
-Desc1: (D/E) - Desc2:  INVESTMENT - category: appFormEntityMatching - Response time: 0.3498539924621582 with response size: 1 and status_code: 200</code></pre>
+<pre><code class="language-plaintext">Desc1: wireless - Desc2: bluetooth - event_type: orderCreated - Response time: 0.8341240882873535 with response size: 0 and status_code: 200
+Desc1: laptop - Desc2: premium - event_type: paymentProcessing - Response time: 0.7632200717926025 with response size: 2 and status_code: 200
+Desc1: smartphone - Desc2: display - event_type: paymentProcessing - Response time: 0.9750120639801025 with response size: 10 and status_code: 200
+Desc1: headphones - Desc2: noise - event_type: shippingLabelGenerated - Response time: 0.8013160228729248 with response size: 1 and status_code: 200
+Desc1: tablet - Desc2: screen - event_type: delivered - Response time: 0.28148913383483887 with response size: 1 and status_code: 200
+Desc1: camera - Desc2: lens - event_type: orderPacked - Response time: 5.500224828720093 with response size: 22 and status_code: 200
+Desc1: speaker - Desc2: audio - event_type: qualityCheck - Response time: 0.5422849655151367 with response size: 17 and status_code: 200
+Desc1: monitor - Desc2: resolution - event_type: orderConfirmed - Response time: 0.5310039520263672 with response size: 1 and status_code: 200
+Desc1: keyboard - Desc2: mechanical - event_type: refundProcessed - Response time: 0.22664308547973633 with response size: 0 and status_code: 200
+Desc1: mouse - Desc2: ergonomic - event_type: warehouseDispatched - Response time: 0.29802703857421875 with response size: 4 and status_code: 200
+Desc1: charger - Desc2: fast - event_type: returnApproved - Response time: 0.5751962661743164 with response size: 1 and status_code: 200
+Desc1: cable - Desc2: durable - event_type: warehouseDispatched - Response time: 0.4712231159210205 with response size: 1 and status_code: 200
+Desc1: battery - Desc2: capacity - event_type: inventoryCheck - Response time: 0.4379410743713379 with response size: 0 and status_code: 200
+Desc1: case - Desc2: protective - event_type: restockInventory - Response time: 0.1974022388458252 with response size: 1 and status_code: 200
+Desc1: adapter - Desc2: compatible - event_type: shippingLabelGenerated - Response time: 1.1938531398773193 with response size: 2 and status_code: 200
+Desc1: stand - Desc2: adjustable - event_type: invoiceGenerated - Response time: 0.23928284645080566 with response size: 1 and status_code: 200
+Desc1: holder - Desc2: mount - event_type: returnApproved - Response time: 0.8484628200531006 with response size: 3 and status_code: 200
+Desc1: protector - Desc2: tempered - event_type: trackingUpdated - Response time: 0.9916658401489258 with response size: 0 and status_code: 200
+Desc1: sleeve - Desc2: padded - event_type: customerNotification - Response time: 0.5275177955627441 with response size: 1 and status_code: 200
+Desc1: backpack - Desc2: laptop - event_type: trackingUpdated - Response time: 0.2814311981201172 with response size: 0 and status_code: 200
+Desc1: warranty - Desc2: extended - event_type: fraudCheckPassed - Response time: 0.2422189712524414 with response size: 4 and status_code: 200
+Desc1: insurance - Desc2: coverage - event_type: reviewSubmitted - Response time: 0.3987157344818115 with response size: 3 and status_code: 200
+Desc1: upgrade - Desc2: premium - event_type: feedbackRequested - Response time: 0.32690978050231934 with response size: 0 and status_code: 200
+Desc1: bundle - Desc2: combo - event_type: bundleCreated - Response time: 4.847761869430542 with response size: 448 and status_code: 200
+Desc1: discount - Desc2: seasonal - event_type: orderPacked - Response time: 5.148753881454468 with response size: 50 and status_code: 200
+Desc1: shipping - Desc2: express - event_type: priorityShipping - Response time: 0.2740499973297119 with response size: 2 and status_code: 200
+Desc1: tracking - Desc2: realtime - event_type: paymentProcessing - Response time: 0.22954797744750977 with response size: 2 and status_code: 200
+Desc1: delivery - Desc2: scheduled - event_type: customerNotification - Response time: 0.23038792610168457 with response size: 1 and status_code: 200
+Desc1: packaging - Desc2: eco - event_type: giftWrappingAdded - Response time: 0.12750792503356934 with response size: 6 and status_code: 200
+Desc1: verification - Desc2: identity - event_type: restockInventory - Response time: 0.7269301414489746 with response size: 2 and status_code: 200
+Desc1: payment - Desc2: secure - event_type: trackingUpdated - Response time: 4.779253959655762 with response size: 10 and status_code: 200
+Desc1: refund - Desc2: instant - event_type: paymentProcessing - Response time: 1.8259990215301514 with response size: 45 and status_code: 200
+Desc1: exchange - Desc2: product - event_type: refundProcessed - Response time: 0.27729368209838867 with response size: 4 and status_code: 200
+Desc1: support - Desc2: technical - event_type: warrantyRegistered - Response time: 0.17746496200561523 with response size: 0 and status_code: 200
+Desc1: subscription - Desc2: monthly - event_type: qualityCheck - Response time: 0.10060572624206543 with response size: 0 and status_code: 200
+Desc1: notification - Desc2: sms - event_type: deliveryConfirmation - Response time: 0.07949614524841309 with response size: 4 and status_code: 200
+Desc1: alert - Desc2: price - event_type: trackingUpdated - Response time: 0.20550107955932617 with response size: 0 and status_code: 200
+Desc1: reminder - Desc2: payment - event_type: orderCreated - Response time: 0.45916223526000977 with response size: 0 and status_code: 200
+Desc1: confirmation - Desc2: order - event_type: carrierPickup - Response time: 0.7781782150268555 with response size: 1 and status_code: 200
+Desc1: invoice - Desc2: digital - event_type: returnApproved - Response time: 0.3498539924621582 with response size: 1 and status_code: 200</code></pre>
 <p>Copy</p>
 <h1>Best Practices to Follow Based on the Above Observations</h1>
 <ol>
