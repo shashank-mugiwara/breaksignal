@@ -1,0 +1,50 @@
+{
+  "custom": [],
+  "files": {
+    ".agents/skills/code-build/SKILL.md": "4d39db4e571a6967e0d4193f66bc658953cba2cf12328cf96d9673cde156951a",
+    ".agents/skills/code-context/SKILL.md": "7438a80deaaa19dde0aa7d56a71ec704d04c48a79fedd7efd6bad33ebc85e094",
+    ".agents/skills/code-context/references/gemini-review.md": "72d0f546a4316a46573dc603aadb6ceb0c92f1063d00f5f1291eabcd400efc4d",
+    ".agents/skills/code-context/scripts/gemini-pack": "f239a50ffaaa752d1adb90fd80081ff9fd916de88550e5f1242aeb6dd5cab2cb",
+    ".agents/skills/growth-copy/SKILL.md": "cbd7d1058338ca0982531ec10338b986b61c73867cf58e8ff90c350530290a53",
+    ".agents/skills/review-ledger/SKILL.md": "291c5ebe6461b3fec37ea261803805973d935618d8887b2e52a1d18e4db5cea6",
+    ".agents/skills/review-ledger/examples/builder-web-brief.md": "95545985c91c95d905585ccf2ff79df70dc9bb88548dee5d2c189eb89737bd2c",
+    ".agents/skills/review-ledger/ledger.md": "f46ab1597aabb4efacdc531275f8592a6806c77420f3688a0cb770a2d8d2e7ff",
+    ".agents/skills/review-ledger/writer-checklist.md": "bca1ae1ec9e6d06a273f9bc0f796df485aa4ff9bb660085839d537122df63ac8",
+    ".jstack/agents/builder/AGENT.md": "379edef295be0fa47586fce2f8716e7bde748e390353a63ee6935059c0b543c0",
+    ".jstack/agents/builder/prompt.md": "3fa6045cea5f67541f1635cd2ea0c657ec1e59955c371b7e3bf00472c9fca9c4",
+    ".jstack/agents/reviewer/AGENT.md": "15c1b2e966bb2e540170738882e17f92ef0eb5936388de76841a14dea032688a",
+    ".jstack/agents/reviewer/prompt.md": "b10b2bc1a99f041b7a1db058735578d47fe247a45718e0c4c7f5d9723ba9d03a",
+    ".jstack/prompts/house-rules.md": "4ed0fe1f4d17cb367905b494547b836bc7cec88537feb0b19f8a9dfc71571485",
+    ".jstack/prompts/worker-brief.md": "607cf3edcacf12174f9c65b6f0ad0835f86c26351d7be2de4f6e2afcf248a31e"
+  },
+  "harnesses": [
+    "claude",
+    "codex",
+    "opencode",
+    "antigravity",
+    "pi"
+  ],
+  "jstack_commit": "f452034bd1427852becdaad379abc033937cd054",
+  "jstack_version": "0.2.0",
+  "links": {
+    ".claude/skills/code-build": "../../.agents/skills/code-build",
+    ".claude/skills/code-context": "../../.agents/skills/code-context",
+    ".claude/skills/growth-copy": "../../.agents/skills/growth-copy",
+    ".claude/skills/review-ledger": "../../.agents/skills/review-ledger"
+  },
+  "mcp": [
+    "codebase-memory-mcp",
+    "context7"
+  ],
+  "repo": "breaksignal",
+  "roles": [
+    "shared/builder",
+    "shared/reviewer"
+  ],
+  "skills": [
+    "code-build",
+    "code-context",
+    "growth-copy",
+    "review-ledger"
+  ]
+}

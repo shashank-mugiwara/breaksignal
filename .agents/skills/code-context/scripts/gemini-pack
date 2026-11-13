@@ -1,0 +1,106 @@
+#!/usr/bin/env bash
+# gemini-pack: pack a repo into one text file (code2prompt) for review in Gemini web.
+# Usage: gemini-pack REPO_DIR [--diff BASE HEAD] [--include GLOBS] [--exclude GLOBS] [--out FILE]
+#        gemini-pack --clean            delete every pack in the private pack folder
+#   full pack:  gemini-pack ~/Documents/GitHub/brace
+#   PR review:  gemini-pack ~/Documents/GitHub/breaksignal-website --diff main steve/one-site-redesign
+# Data rule (ops.md ap-4e2de): allow-list only (repos under ~/Documents/GitHub or ~/worktrees, resolved through
+# symlinks), never AtomicSync or CentralProject, never secrets. Packs land only in ~/.cache/gemini-pack (mode 700),
+# never in a repo, Documents, Desktop or a synced folder; delete them after the upload (`gemini-pack --clean`).
+# Exit codes: 2 usage, 3 data-rule refusal, 4 credential found in the pack (deleted), 5 no pack, 6 version pin.
+# Reviewed and pinned by JStack (skills/code-context/SKILL.md): code2prompt 4.3.0.
+set -euo pipefail
+
+PINNED_VERSION=${GEMINI_PACK_EXPECT_VERSION:-4.3.0}
+HOME_REAL=$(cd "$HOME" && pwd -P)
+PACK_DIR="$HOME_REAL/.cache/gemini-pack"
+
+refuse() { echo "REFUSED: $*" >&2; exit 3; }
+
+if [ "${1:-}" = "--clean" ]; then
+  if [ -d "$PACK_DIR" ]; then
+    n=$(find "$PACK_DIR" -maxdepth 1 -name '*.md' -type f | wc -l | tr -d ' ')
+    find "${PACK_DIR:?}" -maxdepth 1 -name '*.md' -type f -delete
+    echo "deleted $n pack(s) from $PACK_DIR"
+  else
+    echo "no pack folder"
+  fi
+  exit 0
+fi
+[ $# -ge 1 ] || { sed -n '2,10p' "$0"; exit 2; }
+[ -d "$1" ] || refuse "$1 is not a directory"
+REPO=$(cd "$1" && pwd -P); shift
+DIFF=(); INCLUDE=""; EXTRA=""; OUT=""
+while [ $# -gt 0 ]; do
+  case "$1" in
+    --diff) [ $# -ge 3 ] || { echo "--diff needs BASE HEAD" >&2; exit 2; }; DIFF=(--git-diff-branch "$2" "$3"); shift 3 ;;
+    --include) INCLUDE="$2"; shift 2 ;;
+    --exclude) EXTRA="$2"; shift 2 ;;
+    --out) OUT="$2"; shift 2 ;;
+    *) echo "unknown arg $1" >&2; exit 2 ;;
+  esac
+done
+
+# 1. Allow-list, on the resolved path (symlinks and ../ cannot escape it).
+case "$REPO" in
+  "$HOME_REAL"/Documents/GitHub/*|"$HOME_REAL"/worktrees/*) ;;
+  *) refuse "$REPO is outside the allow-list (~/Documents/GitHub, ~/worktrees)." ;;
+esac
+# 2. AtomicSync and CentralProject never go to an outside tool, under any folder name.
+if printf '%s\n' "$REPO" | grep -qiE 'atomicsync|centralproject'; then
+  refuse "AtomicSync source never goes to outside tools (data rule ap-4e2de). Review it with Claude."
+fi
+# 3. A symlink inside the repo that resolves outside it would smuggle other code or secrets in: refuse and name it.
+#    (code2prompt does not follow symlinks unless -L is passed, and this wrapper never passes it; this is the second lock.)
+ESCAPES=""
+while IFS= read -r link; do
+  target=$(cd "$(dirname "$link")" 2>/dev/null && cd "$(dirname "$(readlink "$link")")" 2>/dev/null && pwd -P)/$(basename "$(readlink "$link")") || target="(unresolvable)"
+  case "$target" in
+    "$REPO"/*) ;;
+    *) ESCAPES="$ESCAPES ${link#"$REPO"/}" ;;
+  esac
+done < <(find "$REPO" -type l -not -path '*/.git/*' -not -path '*/node_modules/*' 2>/dev/null)
+[ -z "$ESCAPES" ] || refuse "symlink(s) in the repo resolve outside it:$ESCAPES. Remove them or pack a copy without them."
+# 4. The pack never lands in a repo, a shared folder or a synced folder.
+NAME=$(basename "$REPO"); STAMP=$(date +%Y%m%d-%H%M%S)
+OUT=${OUT:-$PACK_DIR/$NAME-$STAMP.md}
+case "$OUT" in /*) ;; *) OUT="$(pwd -P)/$OUT" ;; esac
+# resolve the nearest existing parent so ../ and symlinks cannot hide the real folder; nothing is created yet
+OUT_DIR=$(cd "$(dirname "$OUT")" 2>/dev/null && pwd -P) || OUT_DIR=$(python3 -c 'import os,sys;print(os.path.realpath(sys.argv[1]))' "$(dirname "$OUT")")
+OUT="$OUT_DIR/$(basename "$OUT")"
+case "$OUT_DIR" in
+  "$PACK_DIR"|"$PACK_DIR"/*) ;;   # the private pack folder is always allowed, wherever HOME lives
+  "$REPO"|"$REPO"/*) refuse "the pack must not be written inside the repo ($OUT)." ;;
+  "$HOME_REAL"/Documents|"$HOME_REAL"/Documents/*|"$HOME_REAL"/Desktop|"$HOME_REAL"/Desktop/*|"$HOME_REAL"/worktrees|"$HOME_REAL"/worktrees/*|"$HOME_REAL"/Library/CloudStorage*|"$HOME_REAL/Library/Mobile Documents"*|"$HOME_REAL"/Downloads|"$HOME_REAL"/Downloads/*|/Volumes/*|/tmp|/tmp/*|/private/tmp|/private/tmp/*)
+    refuse "the pack must not be written to a shared or synced folder ($OUT_DIR); default is $PACK_DIR." ;;
+esac
+# 5. Pinned tool version: a new release is reviewed before it is used (JStack rule for third-party tools).
+command -v code2prompt >/dev/null || { echo "code2prompt not installed (brew install code2prompt, then pin the reviewed version in skills/code-context)" >&2; exit 6; }
+VER=$(code2prompt --version 2>/dev/null | awk '{print $NF}')
+if [ "$VER" != "$PINNED_VERSION" ]; then
+  echo "code2prompt $VER is not the pinned, reviewed version $PINNED_VERSION; review the release, then update the pin in skills/code-context/SKILL.md and this script." >&2
+  exit 6
+fi
+
+mkdir -p "$PACK_DIR" "$OUT_DIR"; chmod 700 "$PACK_DIR" "$OUT_DIR"
+trap 'rc=$?; if [ $rc -ne 0 ]; then rm -f -- "${OUT:?}"; fi' EXIT
+EXCL='**/node_modules/**,**/dist/**,**/build/**,**/.venv/**,**/__pycache__/**,**/.git/**,**/coverage/**,**/*.lock,**/package-lock.json,**/pnpm-lock.yaml,**/*.min.js,**/*.map'
+EXCL="$EXCL,**/.env,**/.env.*,**/*.pem,**/*.key,**/*.p12,**/*.p8,**/*.pfx,**/*.jks,**/*.keystore,**/*.mobileprovision,**/id_rsa*,**/id_ed25519*,**/*.tfstate*,**/*.tfvars,**/.netrc,**/.npmrc,**/.pypirc,**/credentials*,**/*secret*,**/*secrets*,**/service-account*.json,**/google-services.json,**/GoogleService-Info.plist,**/*.kdbx"
+EXCL="$EXCL,**/*.png,**/*.jpg,**/*.jpeg,**/*.webp,**/*.gif,**/*.mp4,**/*.woff,**/*.woff2,**/*.ttf,**/*.pdf,**/*.zip,**/*.sqlite,**/*.db"
+[ -n "$EXTRA" ] && EXCL="$EXCL,$EXTRA"
+ARGS=(-O "$OUT" -F markdown --line-numbers -e "$EXCL" --token-format format)
+[ -n "$INCLUDE" ] && ARGS+=(-i "$INCLUDE")
+[ ${#DIFF[@]} -gt 0 ] && ARGS+=("${DIFF[@]}")
+code2prompt "$REPO" "${ARGS[@]}" 2>&1 | grep -iE 'token|error' || true
+[ -s "$OUT" ] || { echo "no pack written" >&2; exit 5; }
+# 6. Last lock: a credential-looking string anywhere in the pack deletes it.
+if grep -qE '(AKIA[0-9A-Z]{16}|BEGIN [A-Z ]*PRIVATE KEY|sk-(ant-)?[A-Za-z0-9_-]{20,}|gh[pousr]_[A-Za-z0-9]{20,}|github_pat_[A-Za-z0-9_]{20,}|xox[baprs]-[A-Za-z0-9-]{10,}|AIza[0-9A-Za-z_-]{30,}|eyJ[A-Za-z0-9_-]{20,}\.eyJ[A-Za-z0-9_-]{20,})' "$OUT" \
+   || grep -qiE '(api[_-]?key|secret|password|passwd|token)[A-Za-z_]*\s*[:=]\s*["'"'"'][^"'"'"'[:space:]]{12,}["'"'"']' "$OUT"; then
+  rm -f -- "${OUT:?}"
+  echo "REFUSED: credential-looking string in the pack; deleted it. Exclude that file (--exclude) and retry." >&2
+  exit 4
+fi
+SIZE=$(wc -c <"$OUT" | tr -d ' ')
+echo "pack: $OUT ($SIZE bytes)$( [ "$SIZE" -gt 3000000 ] && echo " WARNING >3MB, narrow with --include/--exclude")"
+echo "Gemini web: attach the file with skills/code-context/references/gemini-review.md as the instruction."
+echo "Then delete the pack: gemini-pack --clean (packs are not kept)."
